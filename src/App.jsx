@@ -112,15 +112,15 @@ function SetupScreen({ onSave }) {
    현장 고객 등록 폼
    ================================================================ */
 function RegisterForm({ defaultDate, onSubmit }) {
-  const [name, setName] = useState("");
   const [room, setRoom] = useState("");
   const [date, setDate] = useState(defaultDate);
   const [timeSlot, setTimeSlot] = useState(Object.keys(TIME_SLOTS)[0]);
   const [lockers, setLockers] = useState([]);
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
 
-  const canSubmit = name.trim() && !saving;
+  const canSubmit = room.trim() && !saving;
 
   const updateLocker = (i, patch) =>
     setLockers((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -132,8 +132,9 @@ function RegisterForm({ defaultDate, onSubmit }) {
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSaving(true);
-    await onSubmit({
-      name: name.trim(),
+    const label = room.trim();
+    const ok = await onSubmit({
+      name: "",
       room: room.trim(),
       date,
       timeSlot,
@@ -141,11 +142,14 @@ function RegisterForm({ defaultDate, onSubmit }) {
       memo: memo.trim(),
     });
     setSaving(false);
-    // 폼 초기화 (날짜·시간부는 연속 등록 편의를 위해 유지)
-    setName("");
-    setRoom("");
-    setLockers([]);
-    setMemo("");
+    if (ok) {
+      // 연속 등록 편의: 날짜·시간부는 유지하고 나머지만 초기화
+      setRoom("");
+      setLockers([]);
+      setMemo("");
+      setSavedMsg(`✓ ${label}호 등록 완료`);
+      setTimeout(() => setSavedMsg(""), 2500);
+    }
   };
 
   return (
@@ -160,21 +164,14 @@ function RegisterForm({ defaultDate, onSubmit }) {
 
       <div className="register-grid">
         <div>
-          <label className="label">예약자 성함 *</label>
-          <input
-            className="input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="예: 홍길동"
-          />
-        </div>
-        <div>
-          <label className="label">객실 호수</label>
+          <label className="label">객실 호수 *</label>
           <input
             className="input"
             value={room}
             onChange={(e) => setRoom(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
             placeholder="예: 301"
+            autoFocus
           />
         </div>
         <div>
@@ -264,6 +261,8 @@ function RegisterForm({ defaultDate, onSubmit }) {
       >
         {saving ? "등록중…" : "＋ 고객 등록"}
       </button>
+
+      {savedMsg && <div className="register-saved">{savedMsg}</div>}
     </div>
   );
 }
@@ -440,7 +439,7 @@ export default function App() {
   const [searchRoom, setSearchRoom] = useState("");
   const [searchName, setSearchName] = useState("");
   const [selectedDate, setSelectedDate] = useState(getToday());
-  const [tab, setTab] = useState("search");
+  const [tab, setTab] = useState("register");
   const fetchId = useRef(0);
 
   /* ── API URL 저장 ── */
@@ -522,14 +521,13 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ action: "addReservation", ...data }),
       });
-      // 등록한 날짜로 이동 후 목록 갱신, 조회 탭으로 전환
-      setSearchRoom("");
-      setSearchName("");
+      // 등록 탭에 머문 채 목록만 갱신 (조회·락커 현황 최신화)
       setSelectedDate(data.date);
-      setTab("search");
-      fetchData("", "", data.date);
+      fetchData(searchRoom.trim(), searchName.trim(), data.date);
+      return true;
     } catch {
       alert("등록 실패 — 네트워크를 확인해주세요.");
+      return false;
     }
   };
 
@@ -707,7 +705,7 @@ export default function App() {
           ════════════════════════════════════════ */}
       {tab === "register" && (
         <div className="content">
-          <RegisterForm defaultDate={selectedDate} onSubmit={handleAddReservation} />
+          <RegisterForm defaultDate={getToday()} onSubmit={handleAddReservation} />
         </div>
       )}
     </div>

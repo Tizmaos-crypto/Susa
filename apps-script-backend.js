@@ -133,10 +133,10 @@ function doPost(e) {
 
     // ---------- 현장 고객 등록 (새 행 추가) ----------
     if (body.action === "addReservation") {
-      const name = String(body.name || "").trim();
-      if (!name) return createJsonResponse({ error: "이름은 필수입니다." });
-
       const room = String(body.room || "").trim();
+      if (!room) return createJsonResponse({ error: "객실 호수는 필수입니다." });
+
+      const name = String(body.name || "").trim();
       const date = String(body.date || "").trim();
       const timeSlot = String(body.timeSlot || "").trim();
       const locker = String(body.locker || "").trim();
