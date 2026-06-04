@@ -1,0 +1,56 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #13110e;
+  --surface: #1e1b16;
+  --card: #272320;
+  --border: #3a3530;
+  --text: #ede8df;
+  --text-muted: #9e9689;
+  --accent: #d97706;
+  --accent-light: #fbbf24;
+  --green: #22c55e;
+  --red: #ef4444;
+
+  font-family: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo",
+    "Noto Sans KR", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+}
+
+input,
+button,
+select {
+  font-family: inherit;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent) !important;
+}
+
+button {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
