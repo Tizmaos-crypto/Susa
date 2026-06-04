@@ -131,6 +131,24 @@ function doPost(e) {
       return createJsonResponse({ success: true, rowIndex: row, locker, memo });
     }
 
+    // ---------- 현장 고객 등록 (새 행 추가) ----------
+    if (body.action === "addReservation") {
+      const name = String(body.name || "").trim();
+      if (!name) return createJsonResponse({ error: "이름은 필수입니다." });
+
+      const room = String(body.room || "").trim();
+      const date = String(body.date || "").trim();
+      const timeSlot = String(body.timeSlot || "").trim();
+      const locker = String(body.locker || "").trim();
+      const memo = String(body.memo || "").trim();
+
+      // A:타임스탬프, B:이름, C:객실, D:날짜, E:시간부, F:락커, G:메모
+      sheet.appendRow([new Date(), name, room, date, timeSlot, locker, memo]);
+      const rowIndex = sheet.getLastRow();
+
+      return createJsonResponse({ success: true, rowIndex });
+    }
+
     return createJsonResponse({ error: "Unknown action" });
   } catch (err) {
     return createJsonResponse({ error: err.message });

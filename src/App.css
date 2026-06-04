@@ -382,6 +382,44 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .gender-tag.male { background: #2563eb; }
 .gender-tag.female { background: #db2777; }
 
+/* ── 현장 등록 폼 ── */
+.register-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 26px 28px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+.register-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.register-icon { font-size: 34px; }
+.register-head h2 { font-size: 19px; font-weight: 700; }
+.register-head p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.register-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+select.input {
+  appearance: none;
+  cursor: pointer;
+}
+select.input option {
+  background: var(--surface);
+  color: var(--text);
+}
+
 /* ── Locker Table ── */
 .locker-table {
   background: var(--surface);
@@ -445,5 +483,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .search-field { min-width: 100%; }
   .card-body { flex-direction: column; gap: 10px; }
   .card-actions { flex-wrap: wrap; }
+  .register-grid { grid-template-columns: 1fr; }
+  .register-card { padding: 20px 16px; }
   .locker-header, .locker-row { padding: 10px 14px; font-size: 13px; }
 }

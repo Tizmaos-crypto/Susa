@@ -109,6 +109,166 @@ function SetupScreen({ onSave }) {
 }
 
 /* ================================================================
+   현장 고객 등록 폼
+   ================================================================ */
+function RegisterForm({ defaultDate, onSubmit }) {
+  const [name, setName] = useState("");
+  const [room, setRoom] = useState("");
+  const [date, setDate] = useState(defaultDate);
+  const [timeSlot, setTimeSlot] = useState(Object.keys(TIME_SLOTS)[0]);
+  const [lockers, setLockers] = useState([]);
+  const [memo, setMemo] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const canSubmit = name.trim() && !saving;
+
+  const updateLocker = (i, patch) =>
+    setLockers((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  const addLocker = () =>
+    setLockers((prev) => [...prev, { gender: "남", number: "" }]);
+  const removeLocker = (i) =>
+    setLockers((prev) => prev.filter((_, idx) => idx !== i));
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSaving(true);
+    await onSubmit({
+      name: name.trim(),
+      room: room.trim(),
+      date,
+      timeSlot,
+      locker: serializeLockers(lockers),
+      memo: memo.trim(),
+    });
+    setSaving(false);
+    // 폼 초기화 (날짜·시간부는 연속 등록 편의를 위해 유지)
+    setName("");
+    setRoom("");
+    setLockers([]);
+    setMemo("");
+  };
+
+  return (
+    <div className="register-card">
+      <div className="register-head">
+        <span className="register-icon">🚶</span>
+        <div>
+          <h2>현장 고객 등록</h2>
+          <p>예약 없이 방문한 고객을 직접 추가합니다.</p>
+        </div>
+      </div>
+
+      <div className="register-grid">
+        <div>
+          <label className="label">예약자 성함 *</label>
+          <input
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="예: 홍길동"
+          />
+        </div>
+        <div>
+          <label className="label">객실 호수</label>
+          <input
+            className="input"
+            value={room}
+            onChange={(e) => setRoom(e.target.value)}
+            placeholder="예: 301"
+          />
+        </div>
+        <div>
+          <label className="label">예약일</label>
+          <input
+            type="date"
+            className="input"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="label">이용 시간(부)</label>
+          <select
+            className="input"
+            value={timeSlot}
+            onChange={(e) => setTimeSlot(e.target.value)}
+          >
+            {Object.entries(TIME_SLOTS).map(([key, time]) => (
+              <option key={key} value={key}>
+                {key} ({time})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 락커 (선택) */}
+      <div className="locker-edit" style={{ marginTop: 18 }}>
+        <div className="locker-edit-head">
+          <label className="label" style={{ margin: 0 }}>
+            락커 배정 (선택){lockers.length > 0 && ` · ${lockers.length}`}
+          </label>
+          <button className="add-locker-btn" onClick={addLocker}>
+            + 락커 추가
+          </button>
+        </div>
+
+        {lockers.map((l, i) => (
+          <div className="locker-row-edit" key={i}>
+            <div className="gender-toggle">
+              <button
+                className={`gender-btn male ${l.gender === "남" ? "active" : ""}`}
+                onClick={() => updateLocker(i, { gender: "남" })}
+              >
+                남
+              </button>
+              <button
+                className={`gender-btn female ${l.gender === "여" ? "active" : ""}`}
+                onClick={() => updateLocker(i, { gender: "여" })}
+              >
+                여
+              </button>
+            </div>
+            <input
+              className="input"
+              value={l.number}
+              onChange={(e) => updateLocker(i, { number: e.target.value })}
+              placeholder="락커 번호 (예: 12)"
+            />
+            <button
+              className="remove-locker-btn"
+              onClick={() => removeLocker(i)}
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+
+        <div className="memo-row">
+          <label className="label">메모</label>
+          <input
+            className="input"
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="비고 사항"
+          />
+        </div>
+      </div>
+
+      <button
+        className="btn btn-primary"
+        style={{ width: "100%", marginTop: 18, opacity: canSubmit ? 1 : 0.45 }}
+        disabled={!canSubmit}
+        onClick={handleSubmit}
+      >
+        {saving ? "등록중…" : "＋ 고객 등록"}
+      </button>
+    </div>
+  );
+}
+
+/* ================================================================
    Reservation Card
    ================================================================ */
 function ReservationCard({ r, onUpdate }) {
@@ -355,6 +515,24 @@ export default function App() {
     }
   };
 
+  /* ── 현장 고객 등록 ── */
+  const handleAddReservation = async (data) => {
+    try {
+      await fetch(apiUrl, {
+        method: "POST",
+        body: JSON.stringify({ action: "addReservation", ...data }),
+      });
+      // 등록한 날짜로 이동 후 목록 갱신, 조회 탭으로 전환
+      setSearchRoom("");
+      setSearchName("");
+      setSelectedDate(data.date);
+      setTab("search");
+      fetchData("", "", data.date);
+    } catch {
+      alert("등록 실패 — 네트워크를 확인해주세요.");
+    }
+  };
+
   /* ── 락커 배정된 건 (예약별 다수 락커를 평탄화) ── */
   const allLockers = reservations
     .filter((r) => r.locker)
@@ -403,6 +581,12 @@ export default function App() {
           {allLockers.length > 0 && (
             <span className="tab-badge">{allLockers.length}</span>
           )}
+        </button>
+        <button
+          className={`tab-btn ${tab === "register" ? "active" : ""}`}
+          onClick={() => setTab("register")}
+        >
+          🚶 현장 등록
         </button>
       </div>
 
@@ -515,6 +699,15 @@ export default function App() {
                 })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════
+          현장 등록 탭
+          ════════════════════════════════════════ */}
+      {tab === "register" && (
+        <div className="content">
+          <RegisterForm defaultDate={selectedDate} onSubmit={handleAddReservation} />
         </div>
       )}
     </div>
