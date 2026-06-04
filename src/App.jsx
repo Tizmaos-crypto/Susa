@@ -35,6 +35,17 @@ function slotOrder(slot) {
   return idx >= 0 ? idx : 99;
 }
 
+/* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
+const SLOT_END_MIN = { "1부": 13 * 60, "2부": 16 * 60, "3부": 18 * 60 + 30, "4부": 21 * 60 };
+function getCurrentSlot() {
+  const d = new Date();
+  const mins = d.getHours() * 60 + d.getMinutes();
+  for (const key of Object.keys(TIME_SLOTS)) {
+    if (mins <= SLOT_END_MIN[key]) return key;
+  }
+  return Object.keys(TIME_SLOTS).slice(-1)[0]; // 영업 종료 후엔 마지막 부
+}
+
 /* ── 락커 직렬화 (F열에 "남12, 여15" 형식으로 저장) ── */
 function parseLockers(raw) {
   if (!raw) return [];
@@ -121,56 +132,127 @@ function SetupScreen({ onSave }) {
 }
 
 /* ================================================================
-   현장 고객 등록 폼
+   락커 약식 입력 에디터 (M12=남, W23=여 / Tab=다음, Enter=적용)
    ================================================================ */
-function RegisterForm({ defaultDate, onSubmit }) {
-  const [room, setRoom] = useState("");
-  const [date, setDate] = useState(defaultDate);
-  const [timeSlot, setTimeSlot] = useState(Object.keys(TIME_SLOTS)[0]);
-  const [tokens, setTokens] = useState([""]); // 약식 락커 입력 칸들
-  const [memo, setMemo] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [savedMsg, setSavedMsg] = useState("");
-
-  const lockerRefs = useRef([]);
-  const roomRef = useRef(null);
+function LockerEditor({ tokens, setTokens, onEnter, firstInputRef }) {
+  const refs = useRef([]);
   const [focusIdx, setFocusIdx] = useState(null);
 
-  const canSubmit = room.trim() && !saving;
-
-  // Tab으로 새로 생긴 락커 칸에 포커스
   useEffect(() => {
-    if (focusIdx != null && lockerRefs.current[focusIdx]) {
-      lockerRefs.current[focusIdx].focus();
+    if (focusIdx != null && refs.current[focusIdx]) {
+      refs.current[focusIdx].focus();
       setFocusIdx(null);
     }
   }, [focusIdx, tokens]);
 
-  const setToken = (i, val) =>
-    setTokens((prev) => prev.map((t, idx) => (idx === i ? val : t)));
-  const removeToken = (i) =>
-    setTokens((prev) => {
-      const next = prev.filter((_, idx) => idx !== i);
-      return next.length ? next : [""];
-    });
+  const setToken = (i, val) => setTokens(tokens.map((t, idx) => (idx === i ? val : t)));
+  const removeToken = (i) => {
+    const next = tokens.filter((_, idx) => idx !== i);
+    setTokens(next.length ? next : [""]);
+  };
 
-  const handleLockerKey = (e, i) => {
+  const handleKey = (e, i) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleSubmit();
+      onEnter && onEnter();
     } else if (e.key === "Tab" && !e.shiftKey) {
       const isLast = i === tokens.length - 1;
       if (isLast && tokens[i].trim()) {
         e.preventDefault();
         const newIdx = tokens.length;
-        setTokens((prev) => [...prev, ""]);
+        setTokens([...tokens, ""]);
         setFocusIdx(newIdx);
       }
     }
   };
 
-  const buildLockerString = () =>
-    serializeLockers(tokens.map(parseShorthand).filter((l) => l && l.number.trim()));
+  return (
+    <div className="locker-edit">
+      <div className="locker-edit-head">
+        <label className="label" style={{ margin: 0 }}>
+          락커 배정
+        </label>
+        <div className="locker-head-right">
+          <span className="locker-legend">
+            <b className="male-txt">M</b>=남 · <b className="female-txt">W</b>=여
+          </span>
+          <button
+            type="button"
+            className="add-locker-btn"
+            tabIndex={-1}
+            onClick={() => setTokens([...tokens, ""])}
+          >
+            + 추가
+          </button>
+        </div>
+      </div>
+
+      {tokens.map((tok, i) => {
+        const p = parseShorthand(tok);
+        const valid = p && p.number.trim();
+        return (
+          <div className="locker-row-edit" key={i}>
+            <input
+              ref={(el) => {
+                refs.current[i] = el;
+                if (i === 0 && firstInputRef) firstInputRef.current = el;
+              }}
+              className="input"
+              value={tok}
+              onChange={(e) => setToken(i, e.target.value)}
+              onKeyDown={(e) => handleKey(e, i)}
+              placeholder="예: M12 (남12), W23 (여23)"
+            />
+            {valid ? (
+              <span className={`locker-chip ${p.gender === "남" ? "male" : "female"}`}>
+                {p.gender} {p.number}
+              </span>
+            ) : (
+              <span className="locker-preview-empty">미입력</span>
+            )}
+            <button
+              type="button"
+              className="remove-locker-btn"
+              tabIndex={-1}
+              onClick={() => removeToken(i)}
+              title="삭제"
+            >
+              ✕
+            </button>
+          </div>
+        );
+      })}
+      <div className="locker-tip">
+        락커 칸에서 <b>Tab</b> → 다음 락커, <b>Enter</b> → 적용
+      </div>
+    </div>
+  );
+}
+
+/* 락커 문자열 → 약식 토큰 배열 ("남12, 여23" → ["남12","여23"]) */
+function lockerToTokens(raw) {
+  const arr = parseLockers(raw).map((l) => `${l.gender}${l.number}`);
+  return arr.length ? arr : [""];
+}
+/* 약식 토큰 배열 → 저장용 문자열 */
+function tokensToLocker(tokens) {
+  return serializeLockers(tokens.map(parseShorthand).filter((l) => l && l.number.trim()));
+}
+
+/* ================================================================
+   현장 고객 등록 폼
+   ================================================================ */
+function RegisterForm({ defaultDate, onSubmit }) {
+  const [room, setRoom] = useState("");
+  const [date, setDate] = useState(defaultDate);
+  const [timeSlot, setTimeSlot] = useState(getCurrentSlot);
+  const [tokens, setTokens] = useState([""]); // 약식 락커 입력 칸들
+  const [memo, setMemo] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
+
+  const roomRef = useRef(null);
+  const canSubmit = room.trim() && !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -181,7 +263,7 @@ function RegisterForm({ defaultDate, onSubmit }) {
       room: label,
       date,
       timeSlot,
-      locker: buildLockerString(),
+      locker: tokensToLocker(tokens),
       memo: memo.trim(),
     });
     setSaving(false);
@@ -190,9 +272,9 @@ function RegisterForm({ defaultDate, onSubmit }) {
       setRoom("");
       setTokens([""]);
       setMemo("");
+      setTimeSlot(getCurrentSlot()); // 시간 흐름 반영
       setSavedMsg(`✓ ${label} 등록 완료`);
       setTimeout(() => setSavedMsg(""), 2500);
-      lockerRefs.current = [];
       // 다음 고객을 위해 객실 칸으로 포커스 복귀
       setTimeout(() => roomRef.current && roomRef.current.focus(), 0);
     }
@@ -223,51 +305,8 @@ function RegisterForm({ defaultDate, onSubmit }) {
       </div>
 
       {/* 락커 약식 입력 */}
-      <div className="locker-edit" style={{ marginTop: 18 }}>
-        <div className="locker-edit-head">
-          <label className="label" style={{ margin: 0 }}>
-            락커 배정 (선택)
-          </label>
-          <span className="locker-legend">
-            <b className="male-txt">M</b>=남 · <b className="female-txt">W</b>=여
-          </span>
-        </div>
-
-        {tokens.map((tok, i) => {
-          const p = parseShorthand(tok);
-          const valid = p && p.number.trim();
-          return (
-            <div className="locker-row-edit" key={i}>
-              <input
-                ref={(el) => (lockerRefs.current[i] = el)}
-                className="input"
-                value={tok}
-                onChange={(e) => setToken(i, e.target.value)}
-                onKeyDown={(e) => handleLockerKey(e, i)}
-                placeholder="예: M12 (남12), W23 (여23)"
-              />
-              {valid ? (
-                <span
-                  className={`locker-chip ${p.gender === "남" ? "male" : "female"}`}
-                >
-                  {p.gender} {p.number}
-                </span>
-              ) : (
-                <span className="locker-preview-empty">미입력</span>
-              )}
-              <button
-                className="remove-locker-btn"
-                onClick={() => removeToken(i)}
-                title="삭제"
-              >
-                ✕
-              </button>
-            </div>
-          );
-        })}
-        <div className="locker-tip">
-          락커 칸에서 <b>Tab</b> → 다음 락커 추가, <b>Enter</b> → 즉시 등록
-        </div>
+      <div style={{ marginTop: 18 }}>
+        <LockerEditor tokens={tokens} setTokens={setTokens} onEnter={handleSubmit} />
       </div>
 
       {/* 날짜 · 시간부 */}
@@ -324,27 +363,20 @@ function RegisterForm({ defaultDate, onSubmit }) {
 /* ================================================================
    Reservation Card
    ================================================================ */
-function ReservationCard({ r, onUpdate }) {
-  const [lockers, setLockers] = useState(() => parseLockers(r.locker));
+function ReservationCard({ r, onUpdate, firstInputRef }) {
+  const [tokens, setTokens] = useState(() => lockerToTokens(r.locker));
   const [memo, setMemo] = useState(r.memo || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const serialized = serializeLockers(lockers);
+  const serialized = tokensToLocker(tokens);
   const dirty = serialized !== (r.locker || "") || memo !== (r.memo || "");
 
   // 외부 데이터 변경 시 동기화
   useEffect(() => {
-    setLockers(parseLockers(r.locker));
+    setTokens(lockerToTokens(r.locker));
     setMemo(r.memo || "");
   }, [r.locker, r.memo]);
-
-  const updateLocker = (i, patch) =>
-    setLockers((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-  const addLocker = () =>
-    setLockers((prev) => [...prev, { gender: "남", number: "" }]);
-  const removeLocker = (i) =>
-    setLockers((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSave = async () => {
     setSaving(true);
@@ -377,10 +409,12 @@ function ReservationCard({ r, onUpdate }) {
 
       {/* 예약 정보 */}
       <div className="card-body">
-        <div>
-          <div className="field-label">예약자</div>
-          <div className="field-value">{r.name}</div>
-        </div>
+        {r.name && (
+          <div>
+            <div className="field-label">예약자</div>
+            <div className="field-value">{r.name}</div>
+          </div>
+        )}
         <div>
           <div className="field-label">예약일</div>
           <div className="field-value">{parseDate(r.date)}</div>
@@ -395,74 +429,32 @@ function ReservationCard({ r, onUpdate }) {
         )}
       </div>
 
-      {/* 락커 입력 (다수 배정 가능) */}
-      <div className="locker-edit">
-        <div className="locker-edit-head">
-          <label className="label" style={{ margin: 0 }}>
-            락커 배정 {lockers.length > 0 && `(${lockers.length})`}
-          </label>
-          <button className="add-locker-btn" onClick={addLocker}>
-            + 락커 추가
-          </button>
-        </div>
+      {/* 락커 입력 (약식, 다수 배정 가능) */}
+      <LockerEditor
+        tokens={tokens}
+        setTokens={setTokens}
+        onEnter={handleSave}
+        firstInputRef={firstInputRef}
+      />
 
-        {lockers.length === 0 ? (
-          <div className="no-locker-hint">
-            배정된 락커가 없습니다 — “락커 추가”를 눌러 입력하세요
-          </div>
-        ) : (
-          lockers.map((l, i) => (
-            <div className="locker-row-edit" key={i}>
-              <div className="gender-toggle">
-                <button
-                  className={`gender-btn male ${l.gender === "남" ? "active" : ""}`}
-                  onClick={() => updateLocker(i, { gender: "남" })}
-                >
-                  남
-                </button>
-                <button
-                  className={`gender-btn female ${l.gender === "여" ? "active" : ""}`}
-                  onClick={() => updateLocker(i, { gender: "여" })}
-                >
-                  여
-                </button>
-              </div>
-              <input
-                className="input"
-                value={l.number}
-                onChange={(e) => updateLocker(i, { number: e.target.value })}
-                placeholder="락커 번호 (예: 12)"
-              />
-              <button
-                className="remove-locker-btn"
-                onClick={() => removeLocker(i)}
-                title="삭제"
-              >
-                ✕
-              </button>
-            </div>
-          ))
-        )}
-
-        <div className="memo-row">
-          <label className="label">메모</label>
-          <input
-            className="input"
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            placeholder="비고 사항"
-          />
-        </div>
-
-        <button
-          className={btnClass}
-          style={{ width: "100%" }}
-          disabled={saving || !dirty}
-          onClick={handleSave}
-        >
-          {saving ? "저장중…" : saved ? "✓ 완료" : "저장"}
-        </button>
+      <div className="memo-row" style={{ marginTop: 12 }}>
+        <label className="label">메모</label>
+        <input
+          className="input"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          placeholder="비고 사항"
+        />
       </div>
+
+      <button
+        className={btnClass}
+        style={{ width: "100%", marginTop: 12 }}
+        disabled={saving || !dirty}
+        onClick={handleSave}
+      >
+        {saving ? "저장중…" : saved ? "✓ 완료" : "저장"}
+      </button>
 
       {/* 배정 완료 표시 */}
       {savedLockers.length > 0 && (
@@ -495,6 +487,8 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [tab, setTab] = useState("register");
   const fetchId = useRef(0);
+  const firstLockerRef = useRef(null); // 조회 결과 첫 카드의 락커 입력
+  const pendingFocus = useRef(false);
 
   /* ── API URL 저장 ── */
   const saveUrl = (url) => {
@@ -547,11 +541,25 @@ export default function App() {
 
   /* ── 검색 실행 ── */
   const handleSearch = () => {
+    pendingFocus.current = true; // 결과 렌더 후 첫 락커 칸으로 포커스
     fetchData(searchRoom.trim(), searchName.trim(), selectedDate);
   };
   const handleKeyDown = (e) => {
     if (e.key === "Enter") handleSearch();
   };
+
+  /* ── 조회 결과가 오면 첫 카드의 락커 칸으로 자동 포커스 ── */
+  useEffect(() => {
+    if (
+      pendingFocus.current &&
+      tab === "search" &&
+      reservations.length > 0 &&
+      firstLockerRef.current
+    ) {
+      firstLockerRef.current.focus();
+    }
+    pendingFocus.current = false;
+  }, [reservations, tab]);
 
   /* ── 락커 저장 ── */
   const handleUpdate = async (rowIndex, locker, memo) => {
@@ -648,24 +656,19 @@ export default function App() {
       {tab === "search" && (
         <div className="content">
           <div className="search-bar">
-            <div className="search-field">
+            <div className="search-field search-date">
               <label className="label">날짜</label>
-              <input
-                type="date"
-                className="input"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                onKeyDown={handleKeyDown}
-              />
+              <div className="date-static">📅 오늘 · {selectedDate}</div>
             </div>
             <div className="search-field">
               <label className="label">객실 호수</label>
               <input
                 className="input"
                 value={searchRoom}
-                onChange={(e) => setSearchRoom(e.target.value)}
+                onChange={(e) => setSearchRoom(e.target.value.toUpperCase())}
                 onKeyDown={handleKeyDown}
-                placeholder="예: 301"
+                placeholder="예: A102"
+                autoFocus
               />
             </div>
             <div className="search-field">
@@ -679,7 +682,7 @@ export default function App() {
               />
             </div>
             <button className="btn btn-primary" onClick={handleSearch}>
-              {loading ? "조회중…" : "🔍 조회"}
+              {loading ? "조회중…" : "🔍 조회 (Enter)"}
             </button>
           </div>
 
@@ -693,8 +696,13 @@ export default function App() {
           )}
 
           <div className="card-list">
-            {reservations.map((r) => (
-              <ReservationCard key={r.rowIndex} r={r} onUpdate={handleUpdate} />
+            {reservations.map((r, i) => (
+              <ReservationCard
+                key={r.rowIndex}
+                r={r}
+                onUpdate={handleUpdate}
+                firstInputRef={i === 0 ? firstLockerRef : null}
+              />
             ))}
           </div>
         </div>

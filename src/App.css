@@ -456,6 +456,23 @@ select.input option {
   margin-top: 4px;
 }
 .locker-tip b { color: var(--accent-light); }
+.locker-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 조회 탭 날짜 표시(편집 불가) */
+.search-date { flex: 0 0 auto; }
+.date-static {
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 /* ── Locker Table ── */
 .locker-table {
