@@ -510,6 +510,82 @@ select.input option {
   font-size: 16px;
 }
 
+/* ── 키 검색 ── */
+.key-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 14px;
+  margin-bottom: 18px;
+}
+.key-search-icon { font-size: 18px; }
+.key-search .input {
+  border: none;
+  background: transparent;
+  padding: 6px 0;
+  font-size: 15px;
+}
+.key-search .input:focus { border-color: transparent !important; }
+.key-search-clear {
+  background: var(--border);
+  border: none;
+  color: var(--text-muted);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ── 일행 그룹 / 잔류 강조 / 검색 매칭 ── */
+.group-tag {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-light);
+  background: rgba(217, 119, 6, 0.12);
+  padding: 1px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.locker-row.group {
+  border-left: 3px solid var(--accent);
+}
+.locker-row.match {
+  background: rgba(251, 191, 36, 0.1);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.locker-row.alert {
+  background: rgba(251, 191, 36, 0.16);
+  border-left: 3px solid var(--accent-light);
+  cursor: pointer;
+  animation: alertPulse 1.4s ease-in-out infinite;
+}
+.locker-row.alert:hover { background: rgba(251, 191, 36, 0.24); }
+@keyframes alertPulse {
+  0%, 100% { background: rgba(251, 191, 36, 0.16); }
+  50% { background: rgba(251, 191, 36, 0.05); }
+}
+.key-remove-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 7px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.key-remove-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.08);
+}
+
 /* ── Empty / Error ── */
 .empty-state {
   text-align: center;

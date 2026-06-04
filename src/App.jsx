@@ -239,6 +239,20 @@ function tokensToLocker(tokens) {
   return serializeLockers(tokens.map(parseShorthand).filter((l) => l && l.number.trim()));
 }
 
+/* 키 검색 매칭: "M12"=남12, "W23"=여23, "12"=번호만(성별무관) */
+function matchKeyQuery(query, item) {
+  const q = String(query).trim();
+  if (!q) return true;
+  const hasGender = "MmWw남여".includes(q[0]);
+  if (hasGender) {
+    const p = parseShorthand(q);
+    const num = p.number.trim();
+    if (!num) return item.gender === p.gender; // 성별만 입력 시
+    return item.gender === p.gender && String(item.number) === num;
+  }
+  return String(item.number) === q; // 번호만 입력
+}
+
 /* ================================================================
    현장 고객 등록 폼
    ================================================================ */
@@ -486,6 +500,8 @@ export default function App() {
   const [searchName, setSearchName] = useState("");
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [tab, setTab] = useState("register");
+  const [keyQuery, setKeyQuery] = useState(""); // 락커 현황 키 검색
+  const [leftRooms, setLeftRooms] = useState(() => new Set()); // 일행 잔류 강조 객실
   const fetchId = useRef(0);
   const firstLockerRef = useRef(null); // 조회 결과 첫 카드의 락커 입력
   const pendingFocus = useRef(false);
@@ -597,6 +613,65 @@ export default function App() {
   const allLockers = reservations
     .filter((r) => r.locker)
     .flatMap((r) => parseLockers(r.locker).map((l) => ({ ...l, r })));
+
+  /* 객실별 락커 수 (일행 그룹 판별용) */
+  const roomCounts = allLockers.reduce((acc, it) => {
+    acc[it.r.room] = (acc[it.r.room] || 0) + 1;
+    return acc;
+  }, {});
+
+  /* ── 키 검색 + 같은 객실 통합 ── */
+  const matchedRooms = new Set(
+    keyQuery.trim()
+      ? allLockers.filter((it) => matchKeyQuery(keyQuery, it)).map((it) => it.r.room)
+      : []
+  );
+  const visibleLockers = (
+    keyQuery.trim()
+      ? allLockers.filter((it) => matchedRooms.has(it.r.room))
+      : allLockers
+  )
+    .slice()
+    .sort(
+      (a, b) =>
+        String(a.r.room).localeCompare(String(b.r.room)) ||
+        (parseInt(a.number) || 0) - (parseInt(b.number) || 0)
+    );
+
+  /* ── 키 반납(제거) ── */
+  const handleRemoveLocker = async (item) => {
+    const { r, gender, number } = item;
+    if (
+      !window.confirm(`${r.room} · ${gender}${number} 락커 키를 반납 처리할까요?`)
+    )
+      return;
+    const remaining = parseLockers(r.locker).filter(
+      (l) => !(l.gender === gender && l.number === number)
+    );
+    // 제거 후 같은 객실에 남는 락커가 있는지
+    const roomHasOthers =
+      allLockers.filter(
+        (x) =>
+          x.r.room === r.room &&
+          !(x.r.rowIndex === r.rowIndex && x.gender === gender && x.number === number)
+      ).length > 0;
+
+    await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+
+    setLeftRooms((prev) => {
+      const next = new Set(prev);
+      if (roomHasOthers) next.add(r.room);
+      else next.delete(r.room);
+      return next;
+    });
+  };
+
+  const dismissAlert = (room) =>
+    setLeftRooms((prev) => {
+      const next = new Set(prev);
+      next.delete(room);
+      return next;
+    });
 
   /* ── Setup ── */
   if (!apiUrl) return <SetupScreen onSave={saveUrl} />;
@@ -713,10 +788,32 @@ export default function App() {
           ════════════════════════════════════════ */}
       {tab === "lockers" && (
         <div className="content">
+          {/* 키 검색 */}
+          <div className="key-search">
+            <span className="key-search-icon">🔑</span>
+            <input
+              className="input"
+              value={keyQuery}
+              onChange={(e) => setKeyQuery(e.target.value.toUpperCase())}
+              placeholder="키 검색 — M12(남12), W23(여23), 또는 번호만 (일행 키 함께 표시)"
+              autoFocus
+            />
+            {keyQuery && (
+              <button className="key-search-clear" onClick={() => setKeyQuery("")}>
+                ✕
+              </button>
+            )}
+          </div>
+
           {allLockers.length === 0 ? (
             <div className="empty-state">
               <div className="emoji">🔐</div>
               <p>아직 배정된 락커가 없습니다</p>
+            </div>
+          ) : visibleLockers.length === 0 ? (
+            <div className="empty-state">
+              <div className="emoji">🔍</div>
+              <p>“{keyQuery}” 키를 찾을 수 없습니다</p>
             </div>
           ) : (
             <div className="locker-table">
@@ -727,36 +824,64 @@ export default function App() {
                 <span className="lcell">예약자</span>
                 <span className="lcell lcell-lg">이용 시간</span>
                 <span className="lcell lcell-lg">메모</span>
+                <span className="lcell lcell-sm">반납</span>
               </div>
-              {allLockers
-                .slice()
-                .sort((a, b) => (parseInt(a.number) || 0) - (parseInt(b.number) || 0))
-                .map((item, idx) => {
-                  const slot = matchSlot(item.r.timeSlot);
-                  return (
-                    <div key={`${item.r.rowIndex}-${idx}`} className="locker-row">
-                      <span className="lcell lcell-sm">
-                        <span
-                          className={`gender-tag ${item.gender === "남" ? "male" : "female"}`}
-                        >
-                          {item.gender}
-                        </span>
-                      </span>
-                      <span className="lcell lcell-sm lcell-locker">{item.number}</span>
-                      <span className="lcell">{item.r.room}</span>
-                      <span className="lcell">{item.r.name}</span>
-                      <span className="lcell lcell-lg">
-                        {slot} {TIME_SLOTS[slot] ? `(${TIME_SLOTS[slot]})` : ""}
-                      </span>
+              {visibleLockers.map((item, idx) => {
+                const slot = matchSlot(item.r.timeSlot);
+                const isGroup = roomCounts[item.r.room] > 1;
+                const isAlert = leftRooms.has(item.r.room);
+                const isMatch = keyQuery.trim() && matchKeyQuery(keyQuery, item);
+                const cls = [
+                  "locker-row",
+                  isGroup ? "group" : "",
+                  isAlert ? "alert" : "",
+                  isMatch ? "match" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                return (
+                  <div
+                    key={`${item.r.rowIndex}-${idx}`}
+                    className={cls}
+                    onClick={isAlert ? () => dismissAlert(item.r.room) : undefined}
+                    title={isAlert ? "클릭하여 일행 잔류 표시 해제" : undefined}
+                  >
+                    <span className="lcell lcell-sm">
                       <span
-                        className="lcell lcell-lg"
-                        style={{ opacity: item.r.memo ? 1 : 0.35 }}
+                        className={`gender-tag ${item.gender === "남" ? "male" : "female"}`}
                       >
-                        {item.r.memo || "—"}
+                        {item.gender}
                       </span>
-                    </div>
-                  );
-                })}
+                    </span>
+                    <span className="lcell lcell-sm lcell-locker">{item.number}</span>
+                    <span className="lcell">
+                      {item.r.room}
+                      {isGroup && <span className="group-tag">👥 일행 {roomCounts[item.r.room]}</span>}
+                    </span>
+                    <span className="lcell">{item.r.name || "—"}</span>
+                    <span className="lcell lcell-lg">
+                      {slot} {TIME_SLOTS[slot] ? `(${TIME_SLOTS[slot]})` : ""}
+                    </span>
+                    <span
+                      className="lcell lcell-lg"
+                      style={{ opacity: item.r.memo ? 1 : 0.35 }}
+                    >
+                      {item.r.memo || "—"}
+                    </span>
+                    <span className="lcell lcell-sm">
+                      <button
+                        className="key-remove-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveLocker(item);
+                        }}
+                      >
+                        🔑 반납
+                      </button>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
