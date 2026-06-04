@@ -502,6 +502,7 @@ export default function App() {
   const [tab, setTab] = useState("register");
   const [keyQuery, setKeyQuery] = useState(""); // 락커 현황 키 검색
   const [leftRooms, setLeftRooms] = useState(() => new Set()); // 일행 잔류 강조 객실
+  const [selected, setSelected] = useState(() => new Set()); // 다중 반납 선택
   const fetchId = useRef(0);
   const firstLockerRef = useRef(null); // 조회 결과 첫 카드의 락커 입력
   const pendingFocus = useRef(false);
@@ -673,6 +674,58 @@ export default function App() {
       return next;
     });
 
+  /* ── 다중 선택 반납 ── */
+  const keyId = (it) => `${it.r.rowIndex}|${it.gender}|${it.number}`;
+  const toggleSelect = (id) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const allVisibleSelected =
+    visibleLockers.length > 0 && visibleLockers.every((it) => selected.has(keyId(it)));
+  const toggleSelectAll = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) visibleLockers.forEach((it) => next.delete(keyId(it)));
+      else visibleLockers.forEach((it) => next.add(keyId(it)));
+      return next;
+    });
+
+  const handleRemoveSelected = async () => {
+    if (selected.size === 0) return;
+    if (!window.confirm(`선택한 ${selected.size}개 락커 키를 반납 처리할까요?`)) return;
+
+    // 예약(행)별로 제거할 락커를 묶음
+    const byRow = {};
+    allLockers.forEach((it) => {
+      if (!selected.has(keyId(it))) return;
+      if (!byRow[it.r.rowIndex]) byRow[it.r.rowIndex] = { r: it.r, rm: new Set() };
+      byRow[it.r.rowIndex].rm.add(`${it.gender}|${it.number}`);
+    });
+
+    const remainingAll = allLockers.filter((it) => !selected.has(keyId(it)));
+    const affectedRooms = new Set(Object.values(byRow).map((v) => v.r.room));
+
+    for (const { r, rm } of Object.values(byRow)) {
+      const remaining = parseLockers(r.locker).filter(
+        (l) => !rm.has(`${l.gender}|${l.number}`)
+      );
+      await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+    }
+
+    setLeftRooms((prev) => {
+      const next = new Set(prev);
+      affectedRooms.forEach((room) => {
+        if (remainingAll.some((x) => x.r.room === room)) next.add(room);
+        else next.delete(room);
+      });
+      return next;
+    });
+    setSelected(new Set());
+  };
+
   /* ── Setup ── */
   if (!apiUrl) return <SetupScreen onSave={saveUrl} />;
 
@@ -817,7 +870,31 @@ export default function App() {
             </div>
           ) : (
             <div className="locker-table">
+              {selected.size > 0 && (
+                <div className="select-bar">
+                  <span className="select-bar-count">{selected.size}개 선택됨</span>
+                  <div className="select-bar-actions">
+                    <button
+                      className="btn btn-default"
+                      onClick={() => setSelected(new Set())}
+                    >
+                      선택 해제
+                    </button>
+                    <button className="btn btn-danger" onClick={handleRemoveSelected}>
+                      🔑 선택 반납 ({selected.size})
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="locker-header">
+                <span className="lcell lcell-check">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAll}
+                    title="전체 선택/해제"
+                  />
+                </span>
                 <span className="lcell lcell-sm">구분</span>
                 <span className="lcell lcell-sm">락커</span>
                 <span className="lcell">객실</span>
@@ -831,11 +908,14 @@ export default function App() {
                 const isGroup = roomCounts[item.r.room] > 1;
                 const isAlert = leftRooms.has(item.r.room);
                 const isMatch = keyQuery.trim() && matchKeyQuery(keyQuery, item);
+                const id = keyId(item);
+                const isSelected = selected.has(id);
                 const cls = [
                   "locker-row",
                   isGroup ? "group" : "",
                   isAlert ? "alert" : "",
                   isMatch ? "match" : "",
+                  isSelected ? "selected" : "",
                 ]
                   .filter(Boolean)
                   .join(" ");
@@ -846,6 +926,16 @@ export default function App() {
                     onClick={isAlert ? () => dismissAlert(item.r.room) : undefined}
                     title={isAlert ? "클릭하여 일행 잔류 표시 해제" : undefined}
                   >
+                    <span
+                      className="lcell lcell-check"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(id)}
+                      />
+                    </span>
                     <span className="lcell lcell-sm">
                       <span
                         className={`gender-tag ${item.gender === "남" ? "male" : "female"}`}

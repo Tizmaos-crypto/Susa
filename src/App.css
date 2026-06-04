@@ -586,6 +586,47 @@ select.input option {
   background: rgba(239, 68, 68, 0.08);
 }
 
+/* ── 다중 선택 반납 ── */
+.lcell-check {
+  flex: 0 0 34px;
+  justify-content: center;
+}
+.lcell-check input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.locker-row.selected {
+  background: rgba(217, 119, 6, 0.14);
+}
+.select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 18px;
+  background: var(--accent);
+  color: #fff;
+  gap: 12px;
+}
+.select-bar-count {
+  font-size: 14px;
+  font-weight: 700;
+}
+.select-bar-actions {
+  display: flex;
+  gap: 10px;
+}
+.select-bar .btn {
+  padding: 7px 16px;
+  font-size: 13px;
+}
+.btn-danger {
+  background: var(--red);
+  color: #fff;
+}
+.btn-danger:hover { background: #dc2626; }
+
 /* ── Empty / Error ── */
 .empty-state {
   text-align: center;
