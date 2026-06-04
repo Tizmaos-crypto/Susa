@@ -56,6 +56,18 @@ function serializeLockers(lockers) {
     .join(", ");
 }
 
+/* 약식 락커 입력 파싱: "M12" → 남 12, "W23" → 여 23 (남/여 한글도 허용) */
+function parseShorthand(token) {
+  const t = String(token).trim();
+  if (!t) return null;
+  const first = t[0];
+  if (first === "M" || first === "m" || first === "남")
+    return { gender: "남", number: t.slice(1).trim() };
+  if (first === "W" || first === "w" || first === "여")
+    return { gender: "여", number: t.slice(1).trim() };
+  return { gender: "남", number: t }; // 접두사 없으면 남자로 간주
+}
+
 /* ── API 헬퍼 ── */
 const STORAGE_KEY = "reservation_desk_api_url";
 
@@ -115,19 +127,50 @@ function RegisterForm({ defaultDate, onSubmit }) {
   const [room, setRoom] = useState("");
   const [date, setDate] = useState(defaultDate);
   const [timeSlot, setTimeSlot] = useState(Object.keys(TIME_SLOTS)[0]);
-  const [lockers, setLockers] = useState([]);
+  const [tokens, setTokens] = useState([""]); // 약식 락커 입력 칸들
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
 
+  const lockerRefs = useRef([]);
+  const roomRef = useRef(null);
+  const [focusIdx, setFocusIdx] = useState(null);
+
   const canSubmit = room.trim() && !saving;
 
-  const updateLocker = (i, patch) =>
-    setLockers((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
-  const addLocker = () =>
-    setLockers((prev) => [...prev, { gender: "남", number: "" }]);
-  const removeLocker = (i) =>
-    setLockers((prev) => prev.filter((_, idx) => idx !== i));
+  // Tab으로 새로 생긴 락커 칸에 포커스
+  useEffect(() => {
+    if (focusIdx != null && lockerRefs.current[focusIdx]) {
+      lockerRefs.current[focusIdx].focus();
+      setFocusIdx(null);
+    }
+  }, [focusIdx, tokens]);
+
+  const setToken = (i, val) =>
+    setTokens((prev) => prev.map((t, idx) => (idx === i ? val : t)));
+  const removeToken = (i) =>
+    setTokens((prev) => {
+      const next = prev.filter((_, idx) => idx !== i);
+      return next.length ? next : [""];
+    });
+
+  const handleLockerKey = (e, i) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+    } else if (e.key === "Tab" && !e.shiftKey) {
+      const isLast = i === tokens.length - 1;
+      if (isLast && tokens[i].trim()) {
+        e.preventDefault();
+        const newIdx = tokens.length;
+        setTokens((prev) => [...prev, ""]);
+        setFocusIdx(newIdx);
+      }
+    }
+  };
+
+  const buildLockerString = () =>
+    serializeLockers(tokens.map(parseShorthand).filter((l) => l && l.number.trim()));
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -135,20 +178,23 @@ function RegisterForm({ defaultDate, onSubmit }) {
     const label = room.trim();
     const ok = await onSubmit({
       name: "",
-      room: room.trim(),
+      room: label,
       date,
       timeSlot,
-      locker: serializeLockers(lockers),
+      locker: buildLockerString(),
       memo: memo.trim(),
     });
     setSaving(false);
     if (ok) {
       // 연속 등록 편의: 날짜·시간부는 유지하고 나머지만 초기화
       setRoom("");
-      setLockers([]);
+      setTokens([""]);
       setMemo("");
-      setSavedMsg(`✓ ${label}호 등록 완료`);
+      setSavedMsg(`✓ ${label} 등록 완료`);
       setTimeout(() => setSavedMsg(""), 2500);
+      lockerRefs.current = [];
+      // 다음 고객을 위해 객실 칸으로 포커스 복귀
+      setTimeout(() => roomRef.current && roomRef.current.focus(), 0);
     }
   };
 
@@ -158,22 +204,74 @@ function RegisterForm({ defaultDate, onSubmit }) {
         <span className="register-icon">🚶</span>
         <div>
           <h2>현장 고객 등록</h2>
-          <p>예약 없이 방문한 고객을 직접 추가합니다.</p>
+          <p>객실 → Tab → 락커 → Enter 만으로 빠르게 등록하세요.</p>
         </div>
       </div>
 
-      <div className="register-grid">
-        <div>
-          <label className="label">객실 호수 *</label>
-          <input
-            className="input"
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            placeholder="예: 301"
-            autoFocus
-          />
+      {/* 객실 */}
+      <div>
+        <label className="label">객실 호수 *</label>
+        <input
+          ref={roomRef}
+          className="input"
+          value={room}
+          onChange={(e) => setRoom(e.target.value.toUpperCase())}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          placeholder="예: A102"
+          autoFocus
+        />
+      </div>
+
+      {/* 락커 약식 입력 */}
+      <div className="locker-edit" style={{ marginTop: 18 }}>
+        <div className="locker-edit-head">
+          <label className="label" style={{ margin: 0 }}>
+            락커 배정 (선택)
+          </label>
+          <span className="locker-legend">
+            <b className="male-txt">M</b>=남 · <b className="female-txt">W</b>=여
+          </span>
         </div>
+
+        {tokens.map((tok, i) => {
+          const p = parseShorthand(tok);
+          const valid = p && p.number.trim();
+          return (
+            <div className="locker-row-edit" key={i}>
+              <input
+                ref={(el) => (lockerRefs.current[i] = el)}
+                className="input"
+                value={tok}
+                onChange={(e) => setToken(i, e.target.value)}
+                onKeyDown={(e) => handleLockerKey(e, i)}
+                placeholder="예: M12 (남12), W23 (여23)"
+              />
+              {valid ? (
+                <span
+                  className={`locker-chip ${p.gender === "남" ? "male" : "female"}`}
+                >
+                  {p.gender} {p.number}
+                </span>
+              ) : (
+                <span className="locker-preview-empty">미입력</span>
+              )}
+              <button
+                className="remove-locker-btn"
+                onClick={() => removeToken(i)}
+                title="삭제"
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+        <div className="locker-tip">
+          락커 칸에서 <b>Tab</b> → 다음 락커 추가, <b>Enter</b> → 즉시 등록
+        </div>
+      </div>
+
+      {/* 날짜 · 시간부 */}
+      <div className="register-grid" style={{ marginTop: 18 }}>
         <div>
           <label className="label">예약일</label>
           <input
@@ -199,58 +297,14 @@ function RegisterForm({ defaultDate, onSubmit }) {
         </div>
       </div>
 
-      {/* 락커 (선택) */}
-      <div className="locker-edit" style={{ marginTop: 18 }}>
-        <div className="locker-edit-head">
-          <label className="label" style={{ margin: 0 }}>
-            락커 배정 (선택){lockers.length > 0 && ` · ${lockers.length}`}
-          </label>
-          <button className="add-locker-btn" onClick={addLocker}>
-            + 락커 추가
-          </button>
-        </div>
-
-        {lockers.map((l, i) => (
-          <div className="locker-row-edit" key={i}>
-            <div className="gender-toggle">
-              <button
-                className={`gender-btn male ${l.gender === "남" ? "active" : ""}`}
-                onClick={() => updateLocker(i, { gender: "남" })}
-              >
-                남
-              </button>
-              <button
-                className={`gender-btn female ${l.gender === "여" ? "active" : ""}`}
-                onClick={() => updateLocker(i, { gender: "여" })}
-              >
-                여
-              </button>
-            </div>
-            <input
-              className="input"
-              value={l.number}
-              onChange={(e) => updateLocker(i, { number: e.target.value })}
-              placeholder="락커 번호 (예: 12)"
-            />
-            <button
-              className="remove-locker-btn"
-              onClick={() => removeLocker(i)}
-              title="삭제"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-
-        <div className="memo-row">
-          <label className="label">메모</label>
-          <input
-            className="input"
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            placeholder="비고 사항"
-          />
-        </div>
+      <div className="memo-row" style={{ marginTop: 14 }}>
+        <label className="label">메모</label>
+        <input
+          className="input"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          placeholder="비고 사항"
+        />
       </div>
 
       <button
@@ -259,7 +313,7 @@ function RegisterForm({ defaultDate, onSubmit }) {
         disabled={!canSubmit}
         onClick={handleSubmit}
       >
-        {saving ? "등록중…" : "＋ 고객 등록"}
+        {saving ? "등록중…" : "＋ 고객 등록 (Enter)"}
       </button>
 
       {savedMsg && <div className="register-saved">{savedMsg}</div>}
