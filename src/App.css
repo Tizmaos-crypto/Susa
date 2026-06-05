@@ -540,6 +540,62 @@ select.input option {
   font-weight: 700;
 }
 
+/* ── 반납 확인 필요 (3시간 경과) ── */
+.overdue-section {
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  margin-bottom: 18px;
+  overflow: hidden;
+}
+.overdue-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: rgba(239, 68, 68, 0.12);
+  border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+  flex-wrap: wrap;
+}
+.overdue-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f87171;
+}
+.overdue-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.overdue-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.1);
+  font-size: 14px;
+}
+.overdue-row:last-child { border-bottom: none; }
+.overdue-num {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--accent-light);
+  min-width: 36px;
+}
+.overdue-room {
+  font-weight: 600;
+  min-width: 60px;
+}
+.overdue-time {
+  color: var(--text-muted);
+  min-width: 40px;
+}
+.overdue-elapsed {
+  color: #f87171;
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+}
+
 /* ── 키 검색 ── */
 .key-search {
   display: flex;

@@ -646,11 +646,28 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ action: "updateLocker", rowIndex, locker, memo }),
       });
+      const assignedAt = locker ? new Date().toString() : "";
       setReservations((prev) =>
-        prev.map((r) => (r.rowIndex === rowIndex ? { ...r, locker, memo } : r))
+        prev.map((r) =>
+          r.rowIndex === rowIndex ? { ...r, locker, memo, assignedAt } : r
+        )
       );
     } catch {
       alert("저장 실패 — 네트워크를 확인해주세요.");
+    }
+  };
+
+  /* ── 행 삭제 (내림차순으로 처리) ── */
+  const handleDeleteRows = async (rowIndices) => {
+    try {
+      await fetch(apiUrl, {
+        method: "POST",
+        body: JSON.stringify({ action: "deleteRows", rowIndices }),
+      });
+      const gone = new Set(rowIndices);
+      setReservations((prev) => prev.filter((r) => !gone.has(r.rowIndex)));
+    } catch {
+      alert("삭제 실패 — 네트워크를 확인해주세요.");
     }
   };
 
@@ -703,22 +720,24 @@ export default function App() {
   /* ── 키 반납(제거) ── */
   const handleRemoveLocker = async (item) => {
     const { r, gender, number } = item;
-    if (
-      !window.confirm(`${r.room} · ${gender}${number} 락커 키를 반납 처리할까요?`)
-    )
+    if (!window.confirm(`${r.room} · ${gender}${number} 락커 키를 반납 처리할까요?`))
       return;
+
     const remaining = parseLockers(r.locker).filter(
       (l) => !(l.gender === gender && l.number === number)
     );
-    // 제거 후 같은 객실에 남는 락커가 있는지
-    const roomHasOthers =
-      allLockers.filter(
-        (x) =>
-          x.r.room === r.room &&
-          !(x.r.rowIndex === r.rowIndex && x.gender === gender && x.number === number)
-      ).length > 0;
+    const roomHasOthers = allLockers.some(
+      (x) =>
+        x.r.room === r.room &&
+        !(x.r.rowIndex === r.rowIndex && x.gender === gender && x.number === number)
+    );
 
-    await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+    if (remaining.length === 0) {
+      // 마지막 키 → 행 삭제
+      await handleDeleteRows([r.rowIndex]);
+    } else {
+      await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+    }
 
     setLeftRooms((prev) => {
       const next = new Set(prev);
@@ -767,7 +786,6 @@ export default function App() {
     if (selected.size === 0) return;
     if (!window.confirm(`선택한 ${selected.size}개 락커 키를 반납 처리할까요?`)) return;
 
-    // 예약(행)별로 제거할 락커를 묶음
     const byRow = {};
     allLockers.forEach((it) => {
       if (!selected.has(keyId(it))) return;
@@ -777,13 +795,20 @@ export default function App() {
 
     const remainingAll = allLockers.filter((it) => !selected.has(keyId(it)));
     const affectedRooms = new Set(Object.values(byRow).map((v) => v.r.room));
+    const toDelete = [];
 
     for (const { r, rm } of Object.values(byRow)) {
       const remaining = parseLockers(r.locker).filter(
         (l) => !rm.has(`${l.gender}|${l.number}`)
       );
-      await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+      if (remaining.length === 0) {
+        toDelete.push(r.rowIndex); // 마지막 키 → 행 삭제 대상
+      } else {
+        await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+      }
     }
+
+    if (toDelete.length > 0) await handleDeleteRows(toDelete);
 
     setLeftRooms((prev) => {
       const next = new Set(prev);
@@ -795,6 +820,20 @@ export default function App() {
     });
     setSelected(new Set());
   };
+
+  /* ── 3시간 경과 락커 (배정 시각 기준) ── */
+  const overdueLockers = allLockers.filter((it) => {
+    if (!it.r.assignedAt) return false;
+    const t = new Date(it.r.assignedAt);
+    return !isNaN(t) && Date.now() - t.getTime() > 3 * 60 * 60 * 1000;
+  });
+  // 경과 시간 포맷 (예: 3시간 25분)
+  function elapsedLabel(assignedAt) {
+    const mins = Math.floor((Date.now() - new Date(assignedAt).getTime()) / 60000);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return h > 0 ? `${h}시간 ${m}분 경과` : `${m}분 경과`;
+  }
 
   /* ── Setup ── */
   if (!apiUrl) return <SetupScreen onSave={saveUrl} />;
@@ -911,6 +950,63 @@ export default function App() {
           ════════════════════════════════════════ */}
       {tab === "lockers" && (
         <div className="content">
+
+          {/* ── 반납 확인 필요 (3시간 경과) ── */}
+          {overdueLockers.length > 0 && (
+            <div className="overdue-section">
+              <div className="overdue-header">
+                <span className="overdue-title">
+                  ⚠️ 반납 확인 필요 — {overdueLockers.length}건
+                </span>
+                <span className="overdue-sub">락커 배정 후 3시간 이상 경과</span>
+                <button
+                  className="btn btn-danger"
+                  style={{ marginLeft: "auto", padding: "6px 14px", fontSize: 13 }}
+                  onClick={async () => {
+                    if (!window.confirm(`확인된 ${overdueLockers.length}건의 반납을 처리하고 데이터를 삭제할까요?`)) return;
+                    const byRow = {};
+                    overdueLockers.forEach((it) => {
+                      if (!byRow[it.r.rowIndex])
+                        byRow[it.r.rowIndex] = { r: it.r, rm: new Set() };
+                      byRow[it.r.rowIndex].rm.add(`${it.gender}|${it.number}`);
+                    });
+                    const toDelete = [];
+                    for (const { r, rm } of Object.values(byRow)) {
+                      const remaining = parseLockers(r.locker).filter(
+                        (l) => !rm.has(`${l.gender}|${l.number}`)
+                      );
+                      if (remaining.length === 0) toDelete.push(r.rowIndex);
+                      else await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+                    }
+                    if (toDelete.length > 0) await handleDeleteRows(toDelete);
+                  }}
+                >
+                  전체 반납 처리
+                </button>
+              </div>
+              {overdueLockers.map((item, idx) => {
+                const slot = matchSlot(item.r.timeSlot);
+                return (
+                  <div key={`od-${idx}`} className="overdue-row">
+                    <span className={`gender-tag ${item.gender === "남" ? "male" : "female"}`}>
+                      {item.gender}
+                    </span>
+                    <span className="overdue-num">{item.number}</span>
+                    <span className="overdue-room">{item.r.room}</span>
+                    <span className="overdue-time">{slot}</span>
+                    <span className="overdue-elapsed">{elapsedLabel(item.r.assignedAt)}</span>
+                    <button
+                      className="key-remove-btn"
+                      onClick={() => handleRemoveLocker(item)}
+                    >
+                      🔑 반납
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* 키 검색 */}
           <div className="key-search">
             <span className="key-search-icon">🔑</span>
