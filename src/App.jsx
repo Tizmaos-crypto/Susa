@@ -239,10 +239,13 @@ function tokensToLocker(tokens) {
   return serializeLockers(tokens.map(parseShorthand).filter((l) => l && l.number.trim()));
 }
 
-/* 키 검색 매칭: "M12"=남12, "W23"=여23, "12"=번호만(성별무관) */
+/* 키 검색 매칭: "M12"=남12, "W23"=여23, "12"=번호만, "A102"=객실(부분일치) */
 function matchKeyQuery(query, item) {
   const q = String(query).trim();
   if (!q) return true;
+  // 객실 부분 일치
+  if (String(item.r.room).toUpperCase().includes(q.toUpperCase())) return true;
+  // 키 매칭
   const hasGender = "MmWw남여".includes(q[0]);
   if (hasGender) {
     const p = parseShorthand(q);
@@ -489,6 +492,55 @@ function ReservationCard({ r, onUpdate, firstInputRef }) {
 }
 
 /* ================================================================
+   락커 현황 — 키 번호 인라인 수정
+   ================================================================ */
+function EditableLockerNumber({ item, onCommit }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState("");
+
+  const commit = () => {
+    setEditing(false);
+    const v = val.trim();
+    if (v && v !== item.number) onCommit(item, v);
+  };
+
+  if (!editing) {
+    return (
+      <button
+        className="locker-num-btn"
+        onClick={(e) => {
+          e.stopPropagation();
+          setVal(item.number);
+          setEditing(true);
+        }}
+        title="키 번호 수정"
+      >
+        {item.number}
+        <span className="edit-mark">✎</span>
+      </button>
+    );
+  }
+
+  return (
+    <input
+      className="locker-num-input"
+      value={val}
+      autoFocus
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setVal(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+        else if (e.key === "Escape") {
+          setVal(item.number);
+          setEditing(false);
+        }
+      }}
+      onBlur={commit}
+    />
+  );
+}
+
+/* ================================================================
    Main App
    ================================================================ */
 export default function App() {
@@ -674,6 +726,15 @@ export default function App() {
       return next;
     });
 
+  /* ── 키 번호 변경 (락커 상태 불만으로 교체 요청 시) ── */
+  const handleChangeLockerNumber = async (item, newNumber) => {
+    const { r, gender, number } = item;
+    const updated = parseLockers(r.locker).map((l) =>
+      l.gender === gender && l.number === number ? { ...l, number: newNumber } : l
+    );
+    await handleUpdate(r.rowIndex, serializeLockers(updated), r.memo || "");
+  };
+
   /* ── 다중 선택 반납 ── */
   const keyId = (it) => `${it.r.rowIndex}|${it.gender}|${it.number}`;
   const toggleSelect = (id) =>
@@ -848,7 +909,7 @@ export default function App() {
               className="input"
               value={keyQuery}
               onChange={(e) => setKeyQuery(e.target.value.toUpperCase())}
-              placeholder="키 검색 — M12(남12), W23(여23), 또는 번호만 (일행 키 함께 표시)"
+              placeholder="검색 — M12 / W23 / 번호 / 객실(A102) · 일행 키 함께 표시"
               autoFocus
             />
             {keyQuery && (
@@ -943,7 +1004,12 @@ export default function App() {
                         {item.gender}
                       </span>
                     </span>
-                    <span className="lcell lcell-sm lcell-locker">{item.number}</span>
+                    <span className="lcell lcell-sm lcell-locker">
+                      <EditableLockerNumber
+                        item={item}
+                        onCommit={handleChangeLockerNumber}
+                      />
+                    </span>
                     <span className="lcell">
                       {item.r.room}
                       {isGroup && <span className="group-tag">👥 일행 {roomCounts[item.r.room]}</span>}
