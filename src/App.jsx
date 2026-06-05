@@ -608,6 +608,15 @@ export default function App() {
     if (apiUrl) fetchData("", "", selectedDate);
   }, [apiUrl]); // eslint-disable-line
 
+  /* ── 락커 현황 자동 새로고침 (탭이 현황일 때만) ── */
+  useEffect(() => {
+    if (!apiUrl || tab !== "lockers") return;
+    const timer = setInterval(() => {
+      fetchData(searchRoom.trim(), searchName.trim(), selectedDate);
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [apiUrl, tab, selectedDate, searchRoom, searchName, fetchData]);
+
   /* ── 검색 실행 ── */
   const handleSearch = () => {
     pendingFocus.current = true; // 결과 렌더 후 첫 락커 칸으로 포커스
@@ -917,7 +926,17 @@ export default function App() {
                 ✕
               </button>
             )}
+            <button
+              className="refresh-btn"
+              onClick={() =>
+                fetchData(searchRoom.trim(), searchName.trim(), selectedDate)
+              }
+              title="새로고침"
+            >
+              {loading ? "갱신중…" : "🔄"}
+            </button>
           </div>
+          <div className="auto-refresh-note">⟳ 15초마다 자동 갱신됩니다</div>
 
           {allLockers.length === 0 ? (
             <div className="empty-state">
@@ -931,22 +950,28 @@ export default function App() {
             </div>
           ) : (
             <div className="locker-table">
-              {selected.size > 0 && (
-                <div className="select-bar">
-                  <span className="select-bar-count">{selected.size}개 선택됨</span>
-                  <div className="select-bar-actions">
-                    <button
-                      className="btn btn-default"
-                      onClick={() => setSelected(new Set())}
-                    >
-                      선택 해제
-                    </button>
-                    <button className="btn btn-danger" onClick={handleRemoveSelected}>
-                      🔑 선택 반납 ({selected.size})
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div className={`select-bar ${selected.size > 0 ? "active" : ""}`}>
+                {selected.size > 0 ? (
+                  <>
+                    <span className="select-bar-count">{selected.size}개 선택됨</span>
+                    <div className="select-bar-actions">
+                      <button
+                        className="btn btn-default"
+                        onClick={() => setSelected(new Set())}
+                      >
+                        선택 해제
+                      </button>
+                      <button className="btn btn-danger" onClick={handleRemoveSelected}>
+                        🔑 선택 반납 ({selected.size})
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <span className="select-bar-hint">
+                    체크박스를 선택하면 여러 키를 한 번에 반납할 수 있어요
+                  </span>
+                )}
+              </div>
               <div className="locker-header">
                 <span className="lcell lcell-check">
                   <input

@@ -569,6 +569,25 @@ select.input option {
   font-size: 12px;
   flex-shrink: 0;
 }
+.refresh-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.refresh-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
+}
+.auto-refresh-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin: -8px 2px 16px;
+}
 
 /* ── 일행 그룹 / 잔류 강조 / 검색 매칭 ── */
 .group-tag {
@@ -634,10 +653,21 @@ select.input option {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 18px;
+  min-height: 54px;
+  padding: 10px 18px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  gap: 12px;
+  transition: background 0.15s;
+}
+.select-bar.active {
   background: var(--accent);
   color: #fff;
-  gap: 12px;
+}
+.select-bar-hint {
+  font-size: 13px;
+  color: var(--text-muted);
 }
 .select-bar-count {
   font-size: 14px;
