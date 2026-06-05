@@ -821,18 +821,21 @@ export default function App() {
     setSelected(new Set());
   };
 
-  /* ── 3시간 경과 락커 (배정 시각 기준) ── */
+  /* ── 3시간 경과 락커 (배정 시각 기준, 없으면 A열 등록 시각으로 대체) ── */
   const overdueLockers = allLockers.filter((it) => {
-    if (!it.r.assignedAt) return false;
-    const t = new Date(it.r.assignedAt);
+    const raw = it.r.assignedAt || it.r.timestamp;
+    if (!raw) return false;
+    const t = new Date(raw);
     return !isNaN(t) && Date.now() - t.getTime() > 3 * 60 * 60 * 1000;
   });
   // 경과 시간 포맷 (예: 3시간 25분)
-  function elapsedLabel(assignedAt) {
-    const mins = Math.floor((Date.now() - new Date(assignedAt).getTime()) / 60000);
+  function elapsedLabel(item) {
+    const raw = item.r.assignedAt || item.r.timestamp;
+    const mins = Math.floor((Date.now() - new Date(raw).getTime()) / 60000);
     const h = Math.floor(mins / 60);
     const m = mins % 60;
-    return h > 0 ? `${h}시간 ${m}분 경과` : `${m}분 경과`;
+    const label = h > 0 ? `${h}시간 ${m}분 경과` : `${m}분 경과`;
+    return item.r.assignedAt ? label : `${label} (등록 시각 기준)`;
   }
 
   /* ── Setup ── */
@@ -994,7 +997,7 @@ export default function App() {
                     <span className="overdue-num">{item.number}</span>
                     <span className="overdue-room">{item.r.room}</span>
                     <span className="overdue-time">{slot}</span>
-                    <span className="overdue-elapsed">{elapsedLabel(item.r.assignedAt)}</span>
+                    <span className="overdue-elapsed">{elapsedLabel(item)}</span>
                     <button
                       className="key-remove-btn"
                       onClick={() => handleRemoveLocker(item)}
