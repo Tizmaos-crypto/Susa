@@ -18,14 +18,18 @@
 //   B열: 예약자 성함
 //   C열: 객실 호수
 //   D열: 예약 날짜
-//   E열: 이용 시간(부)
-//   F열: 락커 번호  ← 웹앱에서 기록
-//   G열: 메모       ← 선택사항
-//   H열: 락커 배정 시각 ← 웹앱에서 기록 (3시간 경과 확인용)
+//   E열: 예약 시간(부)
+//   F열: 입장 인원   ← 구글폼
+//   G열: 락커 번호   ← 웹앱에서 기록
+//   H열: 메모        ← 선택사항
+//   I열: 락커 배정 시각 ← 웹앱에서 기록 (3시간 경과 확인용)
 // ============================================================
 
 // ---------- 설정 ----------
 const SHEET_NAME = "설문지 응답 1";
+const NUM_COLS = 9;            // A~I
+const SLOT_CAPACITY = 120;     // 각 시간부(1부~4부) 최대 정원
+const TIME_SLOTS = ["1부", "2부", "3부", "4부"];
 
 // ---------- 유틸 ----------
 function getSheet() {
@@ -51,6 +55,21 @@ function formatDate(d) {
   return s;
 }
 
+// "입장 인원" 값에서 숫자만 추출 ("2명" → 2, "" → 0)
+function parseHeadcount(v) {
+  const n = parseInt(String(v == null ? "" : v).replace(/[^0-9]/g, ""), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+// timeSlot 원본 문자열에서 "1부"~"4부" 키를 찾아 반환 (없으면 "")
+function matchSlot(raw) {
+  const s = String(raw || "");
+  for (let i = 0; i < TIME_SLOTS.length; i++) {
+    if (s.indexOf(TIME_SLOTS[i]) >= 0) return TIME_SLOTS[i];
+  }
+  return "";
+}
+
 function rowToObj(row, idx) {
   return {
     rowIndex: idx,
@@ -59,27 +78,63 @@ function rowToObj(row, idx) {
     room:      row[2] ? String(row[2]).trim() : "",
     date:      row[3] ? formatDate(row[3]) : "",
     timeSlot:  row[4] ? String(row[4]).trim() : "",
-    locker:    row[5] ? String(row[5]).trim() : "",
-    memo:      row[6] ? String(row[6]).trim() : "",
-    assignedAt: row[7] ? String(row[7]) : "", // H열: 락커 배정 시각
+    headcount: parseHeadcount(row[5]),        // F열: 입장 인원
+    locker:    row[6] ? String(row[6]).trim() : "", // G열
+    memo:      row[7] ? String(row[7]).trim() : "", // H열
+    assignedAt: row[8] ? String(row[8]) : "",       // I열: 락커 배정 시각
   };
 }
 
-// ---------- CORS 헤더 ----------
+// ---------- JSON 응답 ----------
 function createJsonResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(
     ContentService.MimeType.JSON
   );
 }
 
-// ---------- GET: 예약 조회 ----------
+// ---------- 시간부별 예약 인원 집계 (공개 현황 페이지용, 개인정보 제외) ----------
+function computeAvailability(date) {
+  const counts = {};
+  TIME_SLOTS.forEach((s) => (counts[s] = 0));
+
+  const sheet = getSheet();
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const data = sheet.getRange(2, 1, lastRow - 1, NUM_COLS).getValues();
+    data.forEach((row) => {
+      if (date && formatDate(row[3]) !== date) return;
+      const slot = matchSlot(row[4]);
+      if (!slot) return;
+      counts[slot] += parseHeadcount(row[5]);
+    });
+  }
+
+  const slots = {};
+  TIME_SLOTS.forEach((s) => {
+    const reserved = counts[s];
+    slots[s] = {
+      reserved: reserved,
+      remaining: Math.max(0, SLOT_CAPACITY - reserved),
+      capacity: SLOT_CAPACITY,
+      full: reserved >= SLOT_CAPACITY,
+    };
+  });
+  return { date: date || "", capacity: SLOT_CAPACITY, slots: slots };
+}
+
+// ---------- GET ----------
 function doGet(e) {
   try {
+    // 공개 현황: 시간부별 예약 인원 / 잔여 정원만 반환 (개인정보 없음)
+    if ((e.parameter.action || "") === "availability") {
+      return createJsonResponse(computeAvailability((e.parameter.date || "").trim()));
+    }
+
     const sheet = getSheet();
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return createJsonResponse({ reservations: [] });
 
-    const data = sheet.getRange(2, 1, lastRow - 1, 8).getValues(); // A~H 8열
+    const data = sheet.getRange(2, 1, lastRow - 1, NUM_COLS).getValues(); // A~I
     let results = data.map((row, i) => rowToObj(row, i + 2));
 
     const pRoom = (e.parameter.room || "").trim();
@@ -108,14 +163,14 @@ function doPost(e) {
       const locker = body.locker || "";
       const memo   = body.memo   || "";
 
-      sheet.getRange(row, 6).setValue(locker);
-      sheet.getRange(row, 7).setValue(memo);
+      sheet.getRange(row, 7).setValue(locker); // G열: 락커
+      sheet.getRange(row, 8).setValue(memo);   // H열: 메모
 
-      // 락커가 새로 배정될 때 H열에 현재 시각 기록, 비워질 때 삭제
+      // 락커가 새로 배정될 때 I열에 현재 시각 기록, 비워질 때 삭제
       if (locker) {
-        sheet.getRange(row, 8).setValue(new Date());
+        sheet.getRange(row, 9).setValue(new Date());
       } else {
-        sheet.getRange(row, 8).setValue("");
+        sheet.getRange(row, 9).setValue("");
       }
 
       return createJsonResponse({ success: true, rowIndex: row, locker, memo });
@@ -140,15 +195,19 @@ function doPost(e) {
       const room = String(body.room || "").trim();
       if (!room) return createJsonResponse({ error: "객실 호수는 필수입니다." });
 
-      const name     = String(body.name     || "").trim();
-      const date     = String(body.date     || "").trim();
-      const timeSlot = String(body.timeSlot || "").trim();
-      const locker   = String(body.locker   || "").trim();
-      const memo     = String(body.memo     || "").trim();
+      const name      = String(body.name     || "").trim();
+      const date      = String(body.date     || "").trim();
+      const timeSlot  = String(body.timeSlot || "").trim();
+      const headcount = parseHeadcount(body.headcount);
+      const locker    = String(body.locker   || "").trim();
+      const memo      = String(body.memo     || "").trim();
 
-      // A:타임스탬프, B:이름, C:객실, D:날짜, E:시간부, F:락커, G:메모, H:배정시각
+      // A:타임스탬프 B:이름 C:객실 D:날짜 E:시간부 F:입장인원 G:락커 H:메모 I:배정시각
       const assignedAt = locker ? new Date() : "";
-      sheet.appendRow([new Date(), name, room, date, timeSlot, locker, memo, assignedAt]);
+      sheet.appendRow([
+        new Date(), name, room, date, timeSlot,
+        headcount || "", locker, memo, assignedAt,
+      ]);
       const rowIndex = sheet.getLastRow();
 
       return createJsonResponse({ success: true, rowIndex });

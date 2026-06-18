@@ -263,6 +263,7 @@ function RegisterForm({ defaultDate, onSubmit }) {
   const [room, setRoom] = useState("");
   const [date, setDate] = useState(defaultDate);
   const [timeSlot, setTimeSlot] = useState(getCurrentSlot);
+  const [headcount, setHeadcount] = useState("");
   const [tokens, setTokens] = useState([""]); // 약식 락커 입력 칸들
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -280,6 +281,7 @@ function RegisterForm({ defaultDate, onSubmit }) {
       room: label,
       date,
       timeSlot,
+      headcount: headcount.trim(),
       locker: tokensToLocker(tokens),
       memo: memo.trim(),
     });
@@ -287,6 +289,7 @@ function RegisterForm({ defaultDate, onSubmit }) {
     if (ok) {
       // 연속 등록 편의: 날짜·시간부는 유지하고 나머지만 초기화
       setRoom("");
+      setHeadcount("");
       setTokens([""]);
       setMemo("");
       setTimeSlot(getCurrentSlot()); // 시간 흐름 반영
@@ -353,14 +356,28 @@ function RegisterForm({ defaultDate, onSubmit }) {
         </div>
       </div>
 
-      <div className="memo-row" style={{ marginTop: 14 }}>
-        <label className="label">메모</label>
-        <input
-          className="input"
-          value={memo}
-          onChange={(e) => setMemo(e.target.value)}
-          placeholder="비고 사항"
-        />
+      <div className="register-grid" style={{ marginTop: 14 }}>
+        <div>
+          <label className="label">입장 인원</label>
+          <input
+            type="number"
+            min="1"
+            inputMode="numeric"
+            className="input"
+            value={headcount}
+            onChange={(e) => setHeadcount(e.target.value)}
+            placeholder="예: 2"
+          />
+        </div>
+        <div className="memo-row">
+          <label className="label">메모</label>
+          <input
+            className="input"
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="비고 사항"
+          />
+        </div>
       </div>
 
       <button
@@ -436,6 +453,12 @@ function ReservationCard({ r, onUpdate, firstInputRef }) {
           <div className="field-label">예약일</div>
           <div className="field-value">{parseDate(r.date)}</div>
         </div>
+        {r.headcount ? (
+          <div>
+            <div className="field-label">입장 인원</div>
+            <div className="field-value">{r.headcount}명</div>
+          </div>
+        ) : null}
         {r.timestamp && (
           <div>
             <div className="field-label">접수 시각</div>
