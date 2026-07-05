@@ -898,7 +898,9 @@ export default function App() {
   /* ── 예약 조회: 타이핑 즉시 클라이언트 필터 (하루치 reservations에서 추림) ── */
   /* 현장 등록(H열 "현장")은 폼 예약 조회 목록에서 제외 */
   const formReservations = reservations.filter((r) => r.source !== "현장");
-  const searchResults = formReservations.filter((r) => {
+  /* 락커가 모두 반납된 예약(returnedAt)은 조회 목록에서 제외 (단, 명단 추출에는 포함) */
+  const activeReservations = formReservations.filter((r) => !r.returnedAt);
+  const searchResults = activeReservations.filter((r) => {
     const roomOk =
       !searchRoom.trim() ||
       String(r.room).toUpperCase().includes(searchRoom.trim().toUpperCase());
@@ -908,7 +910,7 @@ export default function App() {
 
   /* 같은 객실이 여러 부에 중복 예약한 경우: 가장 먼저 접수된(rowIndex 최소) 건이 "첫 예약" */
   const roomStats = {};
-  formReservations.forEach((r) => {
+  activeReservations.forEach((r) => {
     const key = normalizeRoom(r.room);
     if (!key) return;
     if (!roomStats[key]) roomStats[key] = { count: 0, firstRow: r.rowIndex };
