@@ -488,27 +488,15 @@ function ReservationCard({ r, onUpdate, firstInputRef, dupBadge }) {
         {r.name && (
           <div>
             <div className="field-label">예약자</div>
-            <div className="field-value">{r.name}</div>
+            <div className="field-value field-value-lg">{r.name}</div>
           </div>
         )}
-        <div>
-          <div className="field-label">예약일</div>
-          <div className="field-value">{parseDate(r.date)}</div>
-        </div>
         {r.headcount ? (
           <div>
             <div className="field-label">입장 인원</div>
-            <div className="field-value">{r.headcount}명</div>
+            <div className="field-value field-value-lg">{r.headcount}명</div>
           </div>
         ) : null}
-        {r.timestamp && (
-          <div>
-            <div className="field-label">접수 시각</div>
-            <div className="field-value" style={{ fontSize: 13, opacity: 0.7 }}>
-              {r.timestamp}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 락커 입력 (약식, 다수 배정 가능) */}
@@ -1054,7 +1042,7 @@ export default function App() {
                 placeholder="예: 홍길동"
               />
             </div>
-            <button className="btn btn-default" onClick={handleRefresh}>
+            <button className="btn btn-default search-refresh" onClick={handleRefresh}>
               {loading ? "갱신중…" : "🔄 새로고침"}
             </button>
           </div>

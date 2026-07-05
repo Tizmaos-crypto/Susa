@@ -251,6 +251,19 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-size: 15px;
   font-weight: 500;
 }
+.field-value-lg {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* 예약 조회 새로고침 버튼: 폭 고정으로 "갱신중…" 전환 시 입력창 밀림 방지 */
+.search-refresh {
+  flex: 0 0 auto;
+  min-width: 122px;
+  text-align: center;
+  white-space: nowrap;
+}
 .card-actions {
   display: flex;
   gap: 12px;
@@ -633,6 +646,9 @@ select.input option {
   padding: 6px 12px;
   font-size: 14px;
   flex-shrink: 0;
+  min-width: 84px;        /* "🔄" ↔ "갱신중…" 폭 변화로 인한 레이아웃 이동 방지 */
+  text-align: center;
+  white-space: nowrap;
 }
 .refresh-btn:hover {
   border-color: var(--accent);
