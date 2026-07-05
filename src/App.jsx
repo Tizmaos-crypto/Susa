@@ -433,11 +433,13 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
 /* ================================================================
    Reservation Card
    ================================================================ */
-function ReservationCard({ r, onUpdate, firstInputRef, dupBadge }) {
+function ReservationCard({ r, onUpdate, dupBadge }) {
   const [tokens, setTokens] = useState(() => lockerToTokens(r.locker));
   const [memo, setMemo] = useState(r.memo || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const lockerRef = useRef(null);
 
   const serialized = tokensToLocker(tokens);
   const dirty = serialized !== (r.locker || "") || memo !== (r.memo || "");
@@ -447,6 +449,11 @@ function ReservationCard({ r, onUpdate, firstInputRef, dupBadge }) {
     setTokens(lockerToTokens(r.locker));
     setMemo(r.memo || "");
   }, [r.locker, r.memo]);
+
+  // 펼칠 때 락커 입력 칸으로 자동 포커스
+  useEffect(() => {
+    if (expanded && lockerRef.current) lockerRef.current.focus();
+  }, [expanded]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -467,77 +474,94 @@ function ReservationCard({ r, onUpdate, firstInputRef, dupBadge }) {
       : "btn btn-default";
 
   return (
-    <div className={`card ${dupBadge ? "card-dup" : ""}`}>
-      {/* 상단: 객실 + 시간부 */}
-      <div className="card-top">
-        <div className="room-badge">{r.room}</div>
-        {dupBadge === "first" && (
-          <span className="dup-badge dup-first">🥇 첫 예약</span>
-        )}
-        {dupBadge === "extra" && (
-          <span className="dup-badge dup-extra">중복 예약</span>
-        )}
-        <div className="slot-badge">
-          {slot}
-          {slotTime && <span className="time">{slotTime}</span>}
+    <div className={`card ${expanded ? "card-expanded" : ""} ${dupBadge ? "card-dup" : ""}`}>
+      {/* 요약 (클릭하면 락커·메모 펼침) */}
+      <div
+        className="card-summary"
+        onClick={() => setExpanded((v) => !v)}
+        role="button"
+        tabIndex={0}
+      >
+        {/* 상단: 객실 + 시간부 */}
+        <div className="card-top">
+          <div className="room-badge">{r.room}</div>
+          {dupBadge === "first" && (
+            <span className="dup-badge dup-first">🥇 첫 예약</span>
+          )}
+          {dupBadge === "extra" && (
+            <span className="dup-badge dup-extra">중복 예약</span>
+          )}
+          <div className="slot-badge">
+            {slot}
+            {slotTime && <span className="time">{slotTime}</span>}
+          </div>
+        </div>
+
+        {/* 예약 정보 */}
+        <div className="card-body">
+          {r.name && (
+            <div>
+              <div className="field-label">예약자</div>
+              <div className="field-value field-value-lg">{r.name}</div>
+            </div>
+          )}
+          {r.headcount ? (
+            <div>
+              <div className="field-label">입장 인원</div>
+              <div className="field-value field-value-lg">{r.headcount}명</div>
+            </div>
+          ) : null}
+        </div>
+
+        {/* 하단: 락커 배정 상태 요약 + 펼침 안내 */}
+        <div className="card-summary-foot">
+          {savedLockers.length > 0 ? (
+            <span className="summary-lockers">
+              🔐{" "}
+              {savedLockers.map((l, i) => (
+                <span
+                  key={i}
+                  className={`locker-chip ${l.gender === "남" ? "male" : "female"}`}
+                >
+                  {l.gender} {l.number}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span className="summary-nolocker">락커 미배정</span>
+          )}
+          <span className="expand-hint">{expanded ? "▲ 접기" : "▼ 락커 · 메모"}</span>
         </div>
       </div>
 
-      {/* 예약 정보 */}
-      <div className="card-body">
-        {r.name && (
-          <div>
-            <div className="field-label">예약자</div>
-            <div className="field-value field-value-lg">{r.name}</div>
+      {/* 상세 (펼침) — 락커·메모 입력 */}
+      {expanded && (
+        <div className="card-detail">
+          <LockerEditor
+            tokens={tokens}
+            setTokens={setTokens}
+            onEnter={handleSave}
+            firstInputRef={lockerRef}
+          />
+
+          <div className="memo-row" style={{ marginTop: 12 }}>
+            <label className="label">메모</label>
+            <input
+              className="input"
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="비고 사항"
+            />
           </div>
-        )}
-        {r.headcount ? (
-          <div>
-            <div className="field-label">입장 인원</div>
-            <div className="field-value field-value-lg">{r.headcount}명</div>
-          </div>
-        ) : null}
-      </div>
 
-      {/* 락커 입력 (약식, 다수 배정 가능) */}
-      <LockerEditor
-        tokens={tokens}
-        setTokens={setTokens}
-        onEnter={handleSave}
-        firstInputRef={firstInputRef}
-      />
-
-      <div className="memo-row" style={{ marginTop: 12 }}>
-        <label className="label">메모</label>
-        <input
-          className="input"
-          value={memo}
-          onChange={(e) => setMemo(e.target.value)}
-          placeholder="비고 사항"
-        />
-      </div>
-
-      <button
-        className={btnClass}
-        style={{ width: "100%", marginTop: 12 }}
-        disabled={saving || !dirty}
-        onClick={handleSave}
-      >
-        {saving ? "저장중…" : saved ? "✓ 완료" : "저장"}
-      </button>
-
-      {/* 배정 완료 표시 */}
-      {savedLockers.length > 0 && (
-        <div className="locker-confirm">
-          🔐 배정 락커:{" "}
-          {savedLockers.map((l, i) => (
-            <span
-              key={i}
-              className={`locker-chip ${l.gender === "남" ? "male" : "female"}`}
-            >
-              {l.gender} {l.number}
-            </span>
-          ))}
+          <button
+            className={btnClass}
+            style={{ width: "100%", marginTop: 12 }}
+            disabled={saving || !dirty}
+            onClick={handleSave}
+          >
+            {saving ? "저장중…" : saved ? "✓ 완료" : "저장"}
+          </button>
         </div>
       )}
     </div>
@@ -609,7 +633,6 @@ export default function App() {
   const [leftRooms, setLeftRooms] = useState(() => new Set()); // 일행 잔류 강조 객실
   const [selected, setSelected] = useState(() => new Set()); // 다중 반납 선택
   const fetchId = useRef(0);
-  const firstLockerRef = useRef(null); // 조회 결과 첫 카드의 락커 입력
 
   /* ── API URL 저장 ── */
   const saveUrl = (url) => {
@@ -1061,12 +1084,11 @@ export default function App() {
           )}
 
           <div className="card-list">
-            {searchResults.map((r, i) => (
+            {searchResults.map((r) => (
               <ReservationCard
                 key={r.rowIndex}
                 r={r}
                 onUpdate={handleUpdate}
-                firstInputRef={i === 0 ? firstLockerRef : null}
                 dupBadge={dupBadgeFor(r)}
               />
             ))}

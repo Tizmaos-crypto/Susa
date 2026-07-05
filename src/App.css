@@ -217,14 +217,14 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   background: var(--accent);
   color: #fff;
   font-weight: 800;
-  font-size: 18px;
-  padding: 6px 18px;
+  font-size: 23px;
+  padding: 7px 20px;
   border-radius: 9px;
   letter-spacing: 1px;
 }
 .slot-badge {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 800;
   color: var(--accent-light);
 }
 .slot-badge .time {
@@ -252,9 +252,47 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   font-weight: 500;
 }
 .field-value-lg {
-  font-size: 19px;
-  font-weight: 700;
+  font-size: 23px;
+  font-weight: 800;
   color: var(--text);
+}
+
+/* ── 예약 카드: 접이식 (요약 클릭 → 락커·메모 펼침) ── */
+.card-summary {
+  cursor: pointer;
+  outline: none;
+}
+.card-summary-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+.summary-lockers {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.summary-nolocker {
+  font-size: 13px;
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+.expand-hint {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-light);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.card-detail {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 /* 예약 조회 새로고침 버튼: 폭 고정으로 "갱신중…" 전환 시 입력창 밀림 방지 */
