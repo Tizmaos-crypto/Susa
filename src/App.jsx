@@ -35,6 +35,11 @@ function slotOrder(slot) {
   return idx >= 0 ? idx : 99;
 }
 
+/* 객실 표기 정규화 (대소문자·공백 무시): "a 102" → "A102" */
+function normalizeRoom(s) {
+  return String(s || "").toUpperCase().replace(/\s+/g, "");
+}
+
 /* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
 const SLOT_END_MIN = { "1부": 13 * 60, "2부": 16 * 60, "3부": 18 * 60 + 30, "4부": 21 * 60 };
 function getCurrentSlot() {
@@ -259,7 +264,7 @@ function matchKeyQuery(query, item) {
 /* ================================================================
    현장 고객 등록 폼
    ================================================================ */
-function RegisterForm({ defaultDate, onSubmit }) {
+function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
   const [room, setRoom] = useState("");
   const [date, setDate] = useState(defaultDate);
   const [timeSlot, setTimeSlot] = useState(getCurrentSlot);
@@ -271,6 +276,13 @@ function RegisterForm({ defaultDate, onSubmit }) {
 
   const roomRef = useRef(null);
   const canSubmit = room.trim() && !saving;
+
+  /* 입력한 객실이 오늘 이미 예약/입장했는지 (추가 입장·다른 부 재입장 판별용) */
+  const roomKey = normalizeRoom(room);
+  const roomInfo = roomKey
+    ? (dayReservations || []).filter((r) => normalizeRoom(r.room) === roomKey)
+    : [];
+  const roomTotal = roomInfo.reduce((sum, r) => sum + (Number(r.headcount) || 0), 0);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -323,6 +335,30 @@ function RegisterForm({ defaultDate, onSubmit }) {
           autoFocus
         />
       </div>
+
+      {/* 이미 등록된 객실 안내 (추가 입장 / 다른 부 재입장 판별) */}
+      {roomInfo.length > 0 && (
+        <div className="room-history">
+          <div className="room-history-title">
+            ⚠️ 이 객실은 오늘 이미 {roomInfo.length}건 등록됨 · 총 {roomTotal}명
+          </div>
+          {roomInfo.map((r, i) => (
+            <div key={i} className="room-history-row">
+              <span
+                className={`src-badge ${r.source === "현장" ? "src-onsite" : "src-form"}`}
+              >
+                {r.source === "현장" ? "현장" : "폼예약"}
+              </span>
+              <span className="rh-slot">{matchSlot(r.timeSlot) || "—"}</span>
+              <span className="rh-head">{r.headcount ? `${r.headcount}명` : "—"}</span>
+              {r.locker ? <span className="rh-locker">🔐 {r.locker}</span> : null}
+            </div>
+          ))}
+          <div className="room-history-hint">
+            추가 입장인지 · 다른 부 재입장인지 확인하세요 (객실 정원 초과 시 최대 2인 추가 결제)
+          </div>
+        </div>
+      )}
 
       {/* 락커 약식 입력 */}
       <div style={{ marginTop: 18 }}>
@@ -397,7 +433,7 @@ function RegisterForm({ defaultDate, onSubmit }) {
 /* ================================================================
    Reservation Card
    ================================================================ */
-function ReservationCard({ r, onUpdate, firstInputRef }) {
+function ReservationCard({ r, onUpdate, firstInputRef, dupBadge }) {
   const [tokens, setTokens] = useState(() => lockerToTokens(r.locker));
   const [memo, setMemo] = useState(r.memo || "");
   const [saving, setSaving] = useState(false);
@@ -431,10 +467,16 @@ function ReservationCard({ r, onUpdate, firstInputRef }) {
       : "btn btn-default";
 
   return (
-    <div className="card">
+    <div className={`card ${dupBadge ? "card-dup" : ""}`}>
       {/* 상단: 객실 + 시간부 */}
       <div className="card-top">
         <div className="room-badge">{r.room}</div>
+        {dupBadge === "first" && (
+          <span className="dup-badge dup-first">🥇 첫 예약</span>
+        )}
+        {dupBadge === "extra" && (
+          <span className="dup-badge dup-extra">중복 예약</span>
+        )}
         <div className="slot-badge">
           {slot}
           {slotTime && <span className="time">{slotTime}</span>}
@@ -580,7 +622,6 @@ export default function App() {
   const [selected, setSelected] = useState(() => new Set()); // 다중 반납 선택
   const fetchId = useRef(0);
   const firstLockerRef = useRef(null); // 조회 결과 첫 카드의 락커 입력
-  const pendingFocus = useRef(false);
 
   /* ── API URL 저장 ── */
   const saveUrl = (url) => {
@@ -631,36 +672,15 @@ export default function App() {
     if (apiUrl) fetchData("", "", selectedDate);
   }, [apiUrl]); // eslint-disable-line
 
-  /* ── 락커 현황 자동 새로고침 (탭이 현황일 때만) ── */
+  /* ── 자동 새로고침 (모든 탭에서 하루치 전체를 주기적으로 갱신) ── */
   useEffect(() => {
-    if (!apiUrl || tab !== "lockers") return;
-    const timer = setInterval(() => {
-      fetchData(searchRoom.trim(), searchName.trim(), selectedDate);
-    }, 15000);
+    if (!apiUrl) return;
+    const timer = setInterval(() => fetchData("", "", selectedDate), 15000);
     return () => clearInterval(timer);
-  }, [apiUrl, tab, selectedDate, searchRoom, searchName, fetchData]);
+  }, [apiUrl, selectedDate, fetchData]);
 
-  /* ── 검색 실행 ── */
-  const handleSearch = () => {
-    pendingFocus.current = true; // 결과 렌더 후 첫 락커 칸으로 포커스
-    fetchData(searchRoom.trim(), searchName.trim(), selectedDate);
-  };
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSearch();
-  };
-
-  /* ── 조회 결과가 오면 첫 카드의 락커 칸으로 자동 포커스 ── */
-  useEffect(() => {
-    if (
-      pendingFocus.current &&
-      tab === "search" &&
-      reservations.length > 0 &&
-      firstLockerRef.current
-    ) {
-      firstLockerRef.current.focus();
-    }
-    pendingFocus.current = false;
-  }, [reservations, tab]);
+  /* ── 수동 새로고침 (검색은 타이핑 즉시 클라이언트에서 필터링) ── */
+  const handleRefresh = () => fetchData("", "", selectedDate);
 
   /* ── 락커 저장 ── */
   const handleUpdate = async (rowIndex, locker, memo) => {
@@ -680,17 +700,20 @@ export default function App() {
     }
   };
 
-  /* ── 행 삭제 (내림차순으로 처리) ── */
-  const handleDeleteRows = async (rowIndices) => {
+  /* ── 반납 처리 (행 삭제 대신 L열에 반납 시각 기록 → 시트엔 취소선, 현황에선 제외) ── */
+  const handleMarkReturned = async (rowIndices) => {
     try {
       await fetch(apiUrl, {
         method: "POST",
-        body: JSON.stringify({ action: "deleteRows", rowIndices }),
+        body: JSON.stringify({ action: "markReturned", rowIndices }),
       });
-      const gone = new Set(rowIndices);
-      setReservations((prev) => prev.filter((r) => !gone.has(r.rowIndex)));
+      const marked = new Set(rowIndices);
+      const now = new Date().toString();
+      setReservations((prev) =>
+        prev.map((r) => (marked.has(r.rowIndex) ? { ...r, returnedAt: now } : r))
+      );
     } catch {
-      alert("삭제 실패 — 네트워크를 확인해주세요.");
+      alert("반납 처리 실패 — 네트워크를 확인해주세요.");
     }
   };
 
@@ -711,9 +734,9 @@ export default function App() {
     }
   };
 
-  /* ── 락커 배정된 건 (예약별 다수 락커를 평탄화) ── */
+  /* ── 락커 배정된 건 (예약별 다수 락커를 평탄화, 반납 완료 행은 제외) ── */
   const allLockers = reservations
-    .filter((r) => r.locker)
+    .filter((r) => r.locker && !r.returnedAt)
     .flatMap((r) => parseLockers(r.locker).map((l) => ({ ...l, r })));
 
   /* 객실별 락커 수 (일행 그룹 판별용) */
@@ -756,8 +779,8 @@ export default function App() {
     );
 
     if (remaining.length === 0) {
-      // 마지막 키 → 행 삭제
-      await handleDeleteRows([r.rowIndex]);
+      // 마지막 키 → 반납 처리(취소선)
+      await handleMarkReturned([r.rowIndex]);
     } else {
       await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
     }
@@ -818,20 +841,20 @@ export default function App() {
 
     const remainingAll = allLockers.filter((it) => !selected.has(keyId(it)));
     const affectedRooms = new Set(Object.values(byRow).map((v) => v.r.room));
-    const toDelete = [];
+    const toReturn = [];
 
     for (const { r, rm } of Object.values(byRow)) {
       const remaining = parseLockers(r.locker).filter(
         (l) => !rm.has(`${l.gender}|${l.number}`)
       );
       if (remaining.length === 0) {
-        toDelete.push(r.rowIndex); // 마지막 키 → 행 삭제 대상
+        toReturn.push(r.rowIndex); // 마지막 키 → 반납 처리 대상
       } else {
         await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
       }
     }
 
-    if (toDelete.length > 0) await handleDeleteRows(toDelete);
+    if (toReturn.length > 0) await handleMarkReturned(toReturn);
 
     setLeftRooms((prev) => {
       const next = new Set(prev);
@@ -860,6 +883,85 @@ export default function App() {
     const label = h > 0 ? `${h}시간 ${m}분 경과` : `${m}분 경과`;
     return item.r.assignedAt ? label : `${label} (등록 시각 기준)`;
   }
+
+  /* ── 예약 조회: 타이핑 즉시 클라이언트 필터 (하루치 reservations에서 추림) ── */
+  /* 현장 등록(H열 "현장")은 폼 예약 조회 목록에서 제외 */
+  const formReservations = reservations.filter((r) => r.source !== "현장");
+  const searchResults = formReservations.filter((r) => {
+    const roomOk =
+      !searchRoom.trim() ||
+      String(r.room).toUpperCase().includes(searchRoom.trim().toUpperCase());
+    const nameOk = !searchName.trim() || String(r.name).includes(searchName.trim());
+    return roomOk && nameOk;
+  });
+
+  /* 같은 객실이 여러 부에 중복 예약한 경우: 가장 먼저 접수된(rowIndex 최소) 건이 "첫 예약" */
+  const roomStats = {};
+  formReservations.forEach((r) => {
+    const key = normalizeRoom(r.room);
+    if (!key) return;
+    if (!roomStats[key]) roomStats[key] = { count: 0, firstRow: r.rowIndex };
+    roomStats[key].count += 1;
+    if (r.rowIndex < roomStats[key].firstRow) roomStats[key].firstRow = r.rowIndex;
+  });
+  const dupBadgeFor = (r) => {
+    const stat = roomStats[normalizeRoom(r.room)];
+    if (!stat || stat.count < 2) return null;
+    return r.rowIndex === stat.firstRow ? "first" : "extra";
+  };
+
+  /* ── 레이트 체크아웃 희망 명단 (G열 "적용" 응답, 반납 객실도 포함) ── */
+  const lateCheckoutList = formReservations.filter((r) =>
+    String(r.lateCheckout || "").includes("적용")
+  );
+
+  const downloadLateCheckoutCSV = () => {
+    if (lateCheckoutList.length === 0) {
+      alert("레이트 체크아웃을 희망한 객실이 없습니다.");
+      return;
+    }
+    const headers = [
+      "객실 호수",
+      "예약자명",
+      "예약 날짜",
+      "예약시간",
+      "입장 인원",
+      "락커",
+      "반납여부",
+    ];
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = lateCheckoutList
+      .slice()
+      .sort(
+        (a, b) =>
+          String(a.room).localeCompare(String(b.room)) ||
+          slotOrder(a.timeSlot) - slotOrder(b.timeSlot)
+      )
+      .map((r) =>
+        [
+          r.room,
+          r.name,
+          parseDate(r.date),
+          matchSlot(r.timeSlot),
+          r.headcount || "",
+          r.locker || "",
+          r.returnedAt ? "반납" : "",
+        ]
+          .map(esc)
+          .join(",")
+      );
+    // UTF-8 BOM으로 Excel 한글 깨짐 방지
+    const csv = "﻿" + [headers.map(esc).join(","), ...rows].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `레이트체크아웃_명단_${selectedDate}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   /* ── Setup ── */
   if (!apiUrl) return <SetupScreen onSave={saveUrl} />;
@@ -918,6 +1020,16 @@ export default function App() {
           ════════════════════════════════════════ */}
       {tab === "search" && (
         <div className="content">
+          <div className="lc-export-bar">
+            <button
+              className="btn btn-default lc-export-btn"
+              onClick={downloadLateCheckoutCSV}
+              title="레이트 체크아웃 희망 객실 명단 (반납 객실 포함) CSV 다운로드"
+            >
+              ⬇ 레이트 체크아웃 명단
+              {lateCheckoutList.length > 0 ? ` (${lateCheckoutList.length})` : ""}
+            </button>
+          </div>
           <div className="search-bar">
             <div className="search-field search-date">
               <label className="label">날짜</label>
@@ -929,7 +1041,6 @@ export default function App() {
                 className="input"
                 value={searchRoom}
                 onChange={(e) => setSearchRoom(e.target.value.toUpperCase())}
-                onKeyDown={handleKeyDown}
                 placeholder="예: A102"
                 autoFocus
               />
@@ -940,31 +1051,35 @@ export default function App() {
                 className="input"
                 value={searchName}
                 onChange={(e) => setSearchName(e.target.value)}
-                onKeyDown={handleKeyDown}
                 placeholder="예: 홍길동"
               />
             </div>
-            <button className="btn btn-primary" onClick={handleSearch}>
-              {loading ? "조회중…" : "🔍 조회 (Enter)"}
+            <button className="btn btn-default" onClick={handleRefresh}>
+              {loading ? "갱신중…" : "🔄 새로고침"}
             </button>
           </div>
 
           {error && <div className="error-msg">{error}</div>}
 
-          {!loading && reservations.length === 0 && !error && (
+          {!loading && searchResults.length === 0 && !error && (
             <div className="empty-state">
               <div className="emoji">📋</div>
-              <p>조회된 예약이 없습니다</p>
+              <p>
+                {searchRoom.trim() || searchName.trim()
+                  ? "검색 결과가 없습니다"
+                  : "조회된 예약이 없습니다"}
+              </p>
             </div>
           )}
 
           <div className="card-list">
-            {reservations.map((r, i) => (
+            {searchResults.map((r, i) => (
               <ReservationCard
                 key={r.rowIndex}
                 r={r}
                 onUpdate={handleUpdate}
                 firstInputRef={i === 0 ? firstLockerRef : null}
+                dupBadge={dupBadgeFor(r)}
               />
             ))}
           </div>
@@ -989,22 +1104,22 @@ export default function App() {
                   className="btn btn-danger"
                   style={{ marginLeft: "auto", padding: "6px 14px", fontSize: 13 }}
                   onClick={async () => {
-                    if (!window.confirm(`확인된 ${overdueLockers.length}건의 반납을 처리하고 데이터를 삭제할까요?`)) return;
+                    if (!window.confirm(`확인된 ${overdueLockers.length}건을 반납 처리할까요? (시트에 취소선 표시)`)) return;
                     const byRow = {};
                     overdueLockers.forEach((it) => {
                       if (!byRow[it.r.rowIndex])
                         byRow[it.r.rowIndex] = { r: it.r, rm: new Set() };
                       byRow[it.r.rowIndex].rm.add(`${it.gender}|${it.number}`);
                     });
-                    const toDelete = [];
+                    const toReturn = [];
                     for (const { r, rm } of Object.values(byRow)) {
                       const remaining = parseLockers(r.locker).filter(
                         (l) => !rm.has(`${l.gender}|${l.number}`)
                       );
-                      if (remaining.length === 0) toDelete.push(r.rowIndex);
+                      if (remaining.length === 0) toReturn.push(r.rowIndex);
                       else await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
                     }
-                    if (toDelete.length > 0) await handleDeleteRows(toDelete);
+                    if (toReturn.length > 0) await handleMarkReturned(toReturn);
                   }}
                 >
                   전체 반납 처리
@@ -1195,7 +1310,11 @@ export default function App() {
           ════════════════════════════════════════ */}
       {tab === "register" && (
         <div className="content">
-          <RegisterForm defaultDate={getToday()} onSubmit={handleAddReservation} />
+          <RegisterForm
+            defaultDate={getToday()}
+            onSubmit={handleAddReservation}
+            dayReservations={reservations}
+          />
         </div>
       )}
     </div>
