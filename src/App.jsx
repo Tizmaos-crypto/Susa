@@ -923,9 +923,10 @@ export default function App() {
     return r.rowIndex === stat.firstRow ? "first" : "extra";
   };
 
-  /* ── 레이트 체크아웃 희망 명단 (G열 "적용" 응답, 반납 객실도 포함) ── */
-  const lateCheckoutList = formReservations.filter((r) =>
-    String(r.lateCheckout || "").includes("적용")
+  /* ── 레이트 체크아웃 희망 명단 (G열 "적용" 응답, 반납 객실도 포함) ──
+     플캠(연계 숙박업소)은 프로모션 대상이 아니므로 정산 명단에서 제외 */
+  const lateCheckoutList = formReservations.filter(
+    (r) => r.site !== "플캠" && String(r.lateCheckout || "").includes("적용")
   );
 
   const downloadLateCheckoutCSV = () => {
