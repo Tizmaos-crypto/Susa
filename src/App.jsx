@@ -765,6 +765,8 @@ export default function App() {
   const [leftRooms, setLeftRooms] = useState(() => new Set()); // 일행 잔류 강조 객실
   const [selected, setSelected] = useState(() => new Set()); // 다중 반납 선택
   const fetchId = useRef(0);
+  const mutationCount = useRef(0); // 진행 중인 저장/반납 수 (새로고침 경쟁 방지)
+  const lastMutationAt = useRef(0); // 마지막 변경 완료 시각 (낡은 응답 폐기 기준)
 
   /* ── API URL 저장 ── */
   const saveUrl = (url) => {
@@ -779,6 +781,7 @@ export default function App() {
       setLoading(true);
       setError("");
       const id = ++fetchId.current;
+      const startedAt = Date.now();
 
       try {
         const params = new URLSearchParams();
@@ -789,6 +792,9 @@ export default function App() {
         const resp = await fetch(`${apiUrl}?${params.toString()}`);
         const json = await resp.json();
         if (fetchId.current !== id) return;
+        // 반납/저장 진행 중이거나 그 완료 이전에 출발한 응답은 낡은 데이터일 수
+        // 있으므로 폐기 (반납한 키가 잠깐 되살아나는 현상 방지)
+        if (mutationCount.current > 0 || startedAt <= lastMutationAt.current) return;
 
         if (json.error) {
           setError(json.error);
@@ -818,45 +824,76 @@ export default function App() {
   /* ── 자동 새로고침 (모든 탭에서 하루치 전체를 주기적으로 갱신) ── */
   useEffect(() => {
     if (!apiUrl) return;
-    const timer = setInterval(() => fetchData("", "", selectedDate), 15000);
+    const timer = setInterval(() => {
+      if (mutationCount.current > 0) return; // 저장/반납 중엔 갱신 보류
+      fetchData("", "", selectedDate);
+    }, 15000);
     return () => clearInterval(timer);
   }, [apiUrl, selectedDate, fetchData]);
 
   /* ── 수동 새로고침 (검색은 타이핑 즉시 클라이언트에서 필터링) ── */
   const handleRefresh = () => fetchData("", "", selectedDate);
 
-  /* ── 락커 저장 ── */
+  /* ── 락커 저장 (낙관적 업데이트: 즉시 화면 반영, 실패 시 되돌림) ── */
   const handleUpdate = async (rowIndex, locker, memo) => {
+    const target = reservations.find((r) => r.rowIndex === rowIndex);
+    const before = target
+      ? { locker: target.locker, memo: target.memo, assignedAt: target.assignedAt }
+      : null;
+    const assignedAt = locker ? new Date().toString() : "";
+    setReservations((prev) =>
+      prev.map((r) =>
+        r.rowIndex === rowIndex ? { ...r, locker, memo, assignedAt } : r
+      )
+    );
+    mutationCount.current += 1;
     try {
       await fetch(apiUrl, {
         method: "POST",
         body: JSON.stringify({ action: "updateLocker", rowIndex, locker, memo }),
       });
-      const assignedAt = locker ? new Date().toString() : "";
-      setReservations((prev) =>
-        prev.map((r) =>
-          r.rowIndex === rowIndex ? { ...r, locker, memo, assignedAt } : r
-        )
-      );
     } catch {
+      if (before)
+        setReservations((prev) =>
+          prev.map((r) => (r.rowIndex === rowIndex ? { ...r, ...before } : r))
+        );
       alert("저장 실패 — 네트워크를 확인해주세요.");
+    } finally {
+      mutationCount.current -= 1;
+      lastMutationAt.current = Date.now();
     }
   };
 
-  /* ── 반납 처리 (행 삭제 대신 L열에 반납 시각 기록 → 시트엔 취소선, 현황에선 제외) ── */
+  /* ── 반납 처리 (행 삭제 대신 L열에 반납 시각 기록 → 시트엔 취소선, 현황에선 제외)
+        낙관적 업데이트: 클릭 즉시 목록에서 제거, 실패 시 되돌림 ── */
   const handleMarkReturned = async (rowIndices) => {
+    const marked = new Set(rowIndices);
+    const prevReturned = new Map();
+    reservations.forEach((r) => {
+      if (marked.has(r.rowIndex)) prevReturned.set(r.rowIndex, r.returnedAt || "");
+    });
+    const now = new Date().toString();
+    setReservations((prev) =>
+      prev.map((r) => (marked.has(r.rowIndex) ? { ...r, returnedAt: now } : r))
+    );
+    mutationCount.current += 1;
     try {
       await fetch(apiUrl, {
         method: "POST",
         body: JSON.stringify({ action: "markReturned", rowIndices }),
       });
-      const marked = new Set(rowIndices);
-      const now = new Date().toString();
-      setReservations((prev) =>
-        prev.map((r) => (marked.has(r.rowIndex) ? { ...r, returnedAt: now } : r))
-      );
     } catch {
+      setReservations((prev) =>
+        prev.map((r) =>
+          prevReturned.has(r.rowIndex)
+            ? { ...r, returnedAt: prevReturned.get(r.rowIndex) }
+            : r
+        )
+      );
       alert("반납 처리 실패 — 네트워크를 확인해주세요.");
+    } finally {
+      mutationCount.current -= 1;
+      lastMutationAt.current = Date.now();
     }
   };
 
@@ -867,9 +904,9 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ action: "addReservation", source: "현장", site: "휘닉스", ...data }),
       });
-      // 등록 탭에 머문 채 목록만 갱신 (조회·락커 현황 최신화)
+      // 등록 탭에 머문 채 목록만 갱신 (하루치 전체 — 검색어와 무관하게)
       setSelectedDate(data.date);
-      fetchData(searchRoom.trim(), searchName.trim(), data.date);
+      fetchData("", "", data.date);
       return true;
     } catch {
       alert("등록 실패 — 네트워크를 확인해주세요.");
@@ -978,6 +1015,7 @@ export default function App() {
     const remainingAll = allLockers.filter((it) => !selected.has(keyId(it)));
     const affectedRooms = new Set(Object.values(byRow).map((v) => v.r.room));
     const toReturn = [];
+    const tasks = []; // 행별 요청 병렬 전송 (순차 대기 제거)
 
     for (const { r, rm } of Object.values(byRow)) {
       const remaining = parseLockers(r.locker).filter(
@@ -986,11 +1024,12 @@ export default function App() {
       if (remaining.length === 0) {
         toReturn.push(r.rowIndex); // 마지막 키 → 반납 처리 대상
       } else {
-        await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+        tasks.push(handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || ""));
       }
     }
 
-    if (toReturn.length > 0) await handleMarkReturned(toReturn);
+    if (toReturn.length > 0) tasks.push(handleMarkReturned(toReturn));
+    await Promise.all(tasks);
 
     setLeftRooms((prev) => {
       const next = new Set(prev);
@@ -1263,14 +1302,16 @@ export default function App() {
                       byRow[it.r.rowIndex].rm.add(`${it.gender}|${it.number}`);
                     });
                     const toReturn = [];
+                    const tasks = [];
                     for (const { r, rm } of Object.values(byRow)) {
                       const remaining = parseLockers(r.locker).filter(
                         (l) => !rm.has(`${l.gender}|${l.number}`)
                       );
                       if (remaining.length === 0) toReturn.push(r.rowIndex);
-                      else await handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || "");
+                      else tasks.push(handleUpdate(r.rowIndex, serializeLockers(remaining), r.memo || ""));
                     }
-                    if (toReturn.length > 0) await handleMarkReturned(toReturn);
+                    if (toReturn.length > 0) tasks.push(handleMarkReturned(toReturn));
+                    await Promise.all(tasks);
                   }}
                 >
                   전체 반납 처리
