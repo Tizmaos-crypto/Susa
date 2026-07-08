@@ -383,6 +383,7 @@ export default function ReservePage() {
               onChange={(e) => {
                 setDate(e.target.value);
                 setSlotKey("");
+                setAvail(null); // 이전 날짜의 잔여 숫자 잔상 제거 (새 데이터 올 때까지 "…")
               }}
             />
           </Field>
@@ -397,12 +398,12 @@ export default function ReservePage() {
                     key={s.key}
                     type="button"
                     className={`rsv-slot ${active ? "active" : ""} ${closed ? "closed" : ""}`}
-                    disabled={closed}
+                    disabled={closed || availLoading} // 잔여 갱신 중엔 선택 잠금 (낡은 숫자로 선택 방지)
                     onClick={() => setSlotKey(s.key)}
                   >
                     <span className="rsv-slot-label">{s.label}</span>
                     <span className="rsv-slot-remain">
-                      {availLoading && remaining === null
+                      {availLoading
                         ? "…"
                         : closed
                           ? "마감"

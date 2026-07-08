@@ -123,8 +123,10 @@
 }
 .rsv-slot.closed {
   opacity: 0.55;
-  cursor: not-allowed;
   background: #f9fafb;
+}
+.rsv-slot:disabled {
+  cursor: not-allowed;
 }
 .rsv-slot-remain {
   font-size: 13px;
