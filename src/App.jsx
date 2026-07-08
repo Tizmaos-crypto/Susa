@@ -733,7 +733,7 @@ export default function App() {
     try {
       await fetch(apiUrl, {
         method: "POST",
-        body: JSON.stringify({ action: "addReservation", ...data }),
+        body: JSON.stringify({ action: "addReservation", source: "현장", ...data }),
       });
       // 등록 탭에 머문 채 목록만 갱신 (조회·락커 현황 최신화)
       setSelectedDate(data.date);

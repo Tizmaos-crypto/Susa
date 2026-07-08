@@ -206,23 +206,39 @@ function doPost(e) {
       return createJsonResponse({ success: true, marked: indices.length });
     }
 
-    // ---------- 현장 고객 등록 ----------
+    // ---------- 예약 등록 (온라인 고객 예약 + 현장 직원 등록 공용) ----------
     if (body.action === "addReservation") {
       const room = String(body.room || "").trim();
       if (!room) return createJsonResponse({ error: "객실 호수는 필수입니다." });
 
-      const name      = String(body.name     || "").trim();
-      const date      = String(body.date     || "").trim();
-      const timeSlot  = String(body.timeSlot || "").trim();
-      const headcount = parseHeadcount(body.headcount);
-      const locker    = String(body.locker   || "").trim();
-      const memo      = String(body.memo     || "").trim();
+      const name        = String(body.name        || "").trim();
+      const date        = String(body.date        || "").trim();
+      const timeSlot    = String(body.timeSlot    || "").trim();
+      const headcount   = parseHeadcount(body.headcount);
+      const lateCheckout = String(body.lateCheckout || "").trim();
+      const source      = String(body.source      || "").trim(); // "현장"=직원 등록, ""=온라인
+      const locker      = String(body.locker      || "").trim();
+      const memo        = String(body.memo        || "").trim();
+
+      // 온라인 고객 예약은 정원 초과 시 거부 (현장 직원 등록은 초과 허용)
+      if (source !== "현장") {
+        const slotKey = matchSlot(timeSlot);
+        if (slotKey) {
+          const s = computeAvailability(date).slots[slotKey];
+          if (s && s.reserved + headcount > SLOT_CAPACITY) {
+            return createJsonResponse({
+              error: `${slotKey}는 정원(${SLOT_CAPACITY}명)이 마감되었습니다. 다른 시간을 선택해주세요.`,
+              full: true,
+            });
+          }
+        }
+      }
 
       // A:ts B:이름 C:객실 D:날짜 E:시간부 F:입장인원 G:레이트체크아웃 H:구분 I:락커 J:메모 K:배정시각
       const assignedAt = locker ? new Date() : "";
       sheet.appendRow([
         new Date(), name, room, date, timeSlot,
-        headcount || "", "", "현장", locker, memo, assignedAt,
+        headcount || "", lateCheckout, source, locker, memo, assignedAt,
       ]);
       const rowIndex = sheet.getLastRow();
 
