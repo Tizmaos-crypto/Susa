@@ -123,6 +123,100 @@
   flex: 1;
 }
 
+/* 부별 현황판을 오른쪽에 둔 2열 레이아웃 */
+.content-flex {
+  max-width: 1160px;
+  display: flex;
+  gap: 22px;
+  align-items: flex-start;
+}
+.content-flex .main-col {
+  flex: 1;
+  min-width: 0;
+}
+.slot-aside {
+  flex: 0 0 190px;
+  position: sticky;
+  top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+}
+.slot-aside-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.slot-aside-row {
+  margin-bottom: 12px;
+}
+.slot-aside-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.slot-aside-name {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.slot-aside-count {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent-light);
+}
+.slot-aside-count i {
+  font-size: 11px;
+  font-weight: 600;
+  font-style: normal;
+  color: var(--text-muted);
+}
+.slot-aside-time {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin: 1px 0 5px;
+}
+.slot-aside-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.slot-aside-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.slot-aside-row.full .slot-aside-count { color: #f87171; }
+.slot-aside-row.full .slot-aside-fill { background: #ef4444; }
+.slot-aside-foot {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin-top: 6px;
+  text-align: center;
+}
+@media (max-width: 860px) {
+  .content-flex { flex-direction: column; }
+  .slot-aside {
+    position: static;
+    flex-basis: auto;
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* 예약 조회 카드: 예약자 성함 우선 표시 */
+.name-lead {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.3px;
+}
+
 /* ── Search Bar ── */
 .search-bar {
   display: flex;
@@ -549,6 +643,7 @@ select.input option {
   border-bottom: 1px solid var(--border);
   font-size: 14px;
   transition: background 0.1s;
+  cursor: pointer;
 }
 .locker-row:last-child { border-bottom: none; }
 .locker-row:hover { background: var(--card); }

@@ -40,6 +40,111 @@ function normalizeRoom(s) {
   return String(s || "").toUpperCase().replace(/\s+/g, "");
 }
 
+/* ── 영타 → 한글 변환 (두벌식) : "rla" → "김" ──
+   바쁠 때 한/영 안 바꾸고 영문으로 친 성함도 검색되게 하기 위함 */
+const EN2KO = {
+  q: "ㅂ", w: "ㅈ", e: "ㄷ", r: "ㄱ", t: "ㅅ", y: "ㅛ", u: "ㅕ", i: "ㅑ", o: "ㅐ", p: "ㅔ",
+  a: "ㅁ", s: "ㄴ", d: "ㅇ", f: "ㄹ", g: "ㅎ", h: "ㅗ", j: "ㅓ", k: "ㅏ", l: "ㅣ",
+  z: "ㅋ", x: "ㅌ", c: "ㅊ", v: "ㅍ", b: "ㅠ", n: "ㅜ", m: "ㅡ",
+  Q: "ㅃ", W: "ㅉ", E: "ㄸ", R: "ㄲ", T: "ㅆ", O: "ㅒ", P: "ㅖ",
+};
+const KO_CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ".split("");
+const KO_JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ".split("");
+const KO_JONG = ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄵ","ㄶ","ㄷ","ㄹ","ㄺ","ㄻ","ㄼ","ㄽ","ㄾ","ㄿ","ㅀ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+const KO_VOWELS = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅛㅜㅠㅡㅣ";
+const KO_CONS = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const VOWEL_COMBO = {
+  ㅗ: { ㅏ: "ㅘ", ㅐ: "ㅙ", ㅣ: "ㅚ" },
+  ㅜ: { ㅓ: "ㅝ", ㅔ: "ㅞ", ㅣ: "ㅟ" },
+  ㅡ: { ㅣ: "ㅢ" },
+};
+const JONG_COMBO = {
+  ㄱ: { ㅅ: "ㄳ" }, ㄴ: { ㅈ: "ㄵ", ㅎ: "ㄶ" },
+  ㄹ: { ㄱ: "ㄺ", ㅁ: "ㄻ", ㅂ: "ㄼ", ㅅ: "ㄽ", ㅌ: "ㄾ", ㅍ: "ㄿ", ㅎ: "ㅀ" },
+  ㅂ: { ㅅ: "ㅄ" },
+};
+const JONG_SPLIT = {
+  ㄳ: ["ㄱ", "ㅅ"], ㄵ: ["ㄴ", "ㅈ"], ㄶ: ["ㄴ", "ㅎ"], ㄺ: ["ㄹ", "ㄱ"], ㄻ: ["ㄹ", "ㅁ"],
+  ㄼ: ["ㄹ", "ㅂ"], ㄽ: ["ㄹ", "ㅅ"], ㄾ: ["ㄹ", "ㅌ"], ㄿ: ["ㄹ", "ㅍ"], ㅀ: ["ㄹ", "ㅎ"], ㅄ: ["ㅂ", "ㅅ"],
+};
+
+function engToKorean(input) {
+  let out = "";
+  let cur = null; // { cho, jung, jong }
+  const flush = () => {
+    if (!cur) return;
+    if (cur.cho && cur.jung) {
+      const ci = KO_CHO.indexOf(cur.cho);
+      const ji = KO_JUNG.indexOf(cur.jung);
+      const ki = cur.jong ? KO_JONG.indexOf(cur.jong) : 0;
+      if (ci >= 0 && ji >= 0 && ki >= 0) {
+        out += String.fromCharCode(0xac00 + (ci * 21 + ji) * 28 + ki);
+      } else {
+        out += (cur.cho || "") + (cur.jung || "") + (cur.jong || "");
+      }
+    } else {
+      out += (cur.cho || "") + (cur.jung || "") + (cur.jong || "");
+    }
+    cur = null;
+  };
+
+  for (const ch of String(input)) {
+    const j = EN2KO[ch] || EN2KO[ch.toLowerCase()];
+    if (!j) {
+      flush();
+      out += ch;
+      continue;
+    }
+    if (KO_VOWELS.includes(j)) {
+      if (cur && cur.jung) {
+        if (!cur.jong && VOWEL_COMBO[cur.jung] && VOWEL_COMBO[cur.jung][j]) {
+          cur.jung = VOWEL_COMBO[cur.jung][j];
+        } else if (cur.jong) {
+          const split = JONG_SPLIT[cur.jong];
+          const move = split ? split[1] : cur.jong;
+          cur.jong = split ? split[0] : "";
+          flush();
+          cur = { cho: move, jung: j, jong: "" };
+        } else {
+          flush();
+          cur = { cho: "", jung: j, jong: "" };
+        }
+      } else if (cur && cur.cho) {
+        cur.jung = j;
+      } else {
+        flush();
+        cur = { cho: "", jung: j, jong: "" };
+      }
+    } else if (KO_CONS.includes(j)) {
+      if (cur && cur.jung && !cur.jong) {
+        cur.jong = j;
+      } else if (cur && cur.jung && cur.jong) {
+        if (JONG_COMBO[cur.jong] && JONG_COMBO[cur.jong][j]) {
+          cur.jong = JONG_COMBO[cur.jong][j];
+        } else {
+          flush();
+          cur = { cho: j, jung: "", jong: "" };
+        }
+      } else {
+        flush();
+        cur = { cho: j, jung: "", jong: "" };
+      }
+    }
+  }
+  flush();
+  return out;
+}
+
+/* 성함 검색 매칭: 그대로 또는 영타→한글 변환본이 포함되면 일치 */
+function nameMatches(query, name) {
+  const q = String(query || "").trim();
+  if (!q) return true;
+  const target = String(name || "");
+  if (target.includes(q)) return true;
+  const ko = engToKorean(q);
+  return ko && ko !== q && target.includes(ko);
+}
+
 /* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
 const SLOT_END_MIN = { "1부": 13 * 60, "2부": 15 * 60 + 30, "3부": 18 * 60, "4부": 21 * 60 };
 function getCurrentSlot() {
@@ -482,9 +587,9 @@ function ReservationCard({ r, onUpdate, dupBadge }) {
         role="button"
         tabIndex={0}
       >
-        {/* 상단: 객실 + 시간부 */}
+        {/* 상단: 예약자 성함(우선) + 시간부 */}
         <div className="card-top">
-          <div className="room-badge">{r.room}</div>
+          <div className="name-lead">{r.name || "(성함 없음)"}</div>
           {dupBadge === "first" && (
             <span className="dup-badge dup-first">🥇 첫 예약</span>
           )}
@@ -497,14 +602,12 @@ function ReservationCard({ r, onUpdate, dupBadge }) {
           </div>
         </div>
 
-        {/* 예약 정보 */}
+        {/* 예약 정보: 객실 + 인원 */}
         <div className="card-body">
-          {r.name && (
-            <div>
-              <div className="field-label">예약자</div>
-              <div className="field-value field-value-lg">{r.name}</div>
-            </div>
-          )}
+          <div>
+            <div className="field-label">객실 호수</div>
+            <div className="field-value field-value-lg">{r.room}</div>
+          </div>
           {r.headcount ? (
             <div>
               <div className="field-label">입장 인원</div>
@@ -614,6 +717,38 @@ function EditableLockerNumber({ item, onCommit }) {
       }}
       onBlur={commit}
     />
+  );
+}
+
+/* ================================================================
+   부별 실시간 예약 현황판 (오른쪽 고정, 스크롤 따라옴)
+   ================================================================ */
+function SlotStatusPanel({ totals, capacity = 120 }) {
+  return (
+    <aside className="slot-aside">
+      <div className="slot-aside-title">🏊 부별 예약 인원</div>
+      {Object.entries(TIME_SLOTS).map(([k, time]) => {
+        const n = totals[k] || 0;
+        const pct = Math.min(100, Math.round((n / capacity) * 100));
+        const full = n >= capacity;
+        return (
+          <div key={k} className={`slot-aside-row ${full ? "full" : ""}`}>
+            <div className="slot-aside-head">
+              <span className="slot-aside-name">{k}</span>
+              <span className="slot-aside-count">
+                {n}
+                <i>/{capacity}</i>
+              </span>
+            </div>
+            <div className="slot-aside-time">{time}</div>
+            <div className="slot-aside-bar">
+              <div className="slot-aside-fill" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
+      <div className="slot-aside-foot">⟳ 15초마다 자동 갱신</div>
+    </aside>
   );
 }
 
@@ -804,13 +939,6 @@ export default function App() {
     });
   };
 
-  const dismissAlert = (room) =>
-    setLeftRooms((prev) => {
-      const next = new Set(prev);
-      next.delete(room);
-      return next;
-    });
-
   /* ── 키 번호 변경 (락커 상태 불만으로 교체 요청 시) ── */
   const handleChangeLockerNumber = async (item, newNumber) => {
     const { r, gender, number } = item;
@@ -904,8 +1032,15 @@ export default function App() {
     const roomOk =
       !searchRoom.trim() ||
       String(r.room).toUpperCase().includes(searchRoom.trim().toUpperCase());
-    const nameOk = !searchName.trim() || String(r.name).includes(searchName.trim());
+    const nameOk = nameMatches(searchName, r.name);
     return roomOk && nameOk;
+  });
+
+  /* ── 부별 실시간 예약 인원 (선택 날짜 기준, 전체 인원 합산) ── */
+  const slotTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
+  reservations.forEach((r) => {
+    const s = matchSlot(r.timeSlot);
+    if (s in slotTotals) slotTotals[s] += Number(r.headcount) || 0;
   });
 
   /* 같은 객실이 여러 부에 중복 예약한 경우: 가장 먼저 접수된(rowIndex 최소) 건이 "첫 예약" */
@@ -1033,7 +1168,8 @@ export default function App() {
           예약 조회 탭
           ════════════════════════════════════════ */}
       {tab === "search" && (
-        <div className="content">
+        <div className="content content-flex">
+          <div className="main-col">
           <div className="lc-export-bar">
             <button
               className="btn btn-default lc-export-btn"
@@ -1050,22 +1186,22 @@ export default function App() {
               <div className="date-static">📅 오늘 · {selectedDate}</div>
             </div>
             <div className="search-field">
+              <label className="label">예약자 성함</label>
+              <input
+                className="input"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                placeholder="예: 홍길동 (영타 rla=김 도 인식)"
+                autoFocus
+              />
+            </div>
+            <div className="search-field">
               <label className="label">객실 호수</label>
               <input
                 className="input"
                 value={searchRoom}
                 onChange={(e) => setSearchRoom(e.target.value.toUpperCase())}
                 placeholder="예: A102"
-                autoFocus
-              />
-            </div>
-            <div className="search-field">
-              <label className="label">예약자 성함</label>
-              <input
-                className="input"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                placeholder="예: 홍길동"
               />
             </div>
             <button className="btn btn-default search-refresh" onClick={handleRefresh}>
@@ -1096,6 +1232,8 @@ export default function App() {
               />
             ))}
           </div>
+          </div>
+          <SlotStatusPanel totals={slotTotals} />
         </div>
       )}
 
@@ -1218,7 +1356,7 @@ export default function App() {
                   </>
                 ) : (
                   <span className="select-bar-hint">
-                    체크박스를 선택하면 여러 키를 한 번에 반납할 수 있어요
+                    행을 클릭하면 선택됩니다 · 여러 키를 한 번에 반납할 수 있어요
                   </span>
                 )}
               </div>
@@ -1259,8 +1397,8 @@ export default function App() {
                   <div
                     key={`${item.r.rowIndex}-${idx}`}
                     className={cls}
-                    onClick={isAlert ? () => dismissAlert(item.r.room) : undefined}
-                    title={isAlert ? "클릭하여 일행 잔류 표시 해제" : undefined}
+                    onClick={() => toggleSelect(id)}
+                    title="클릭하여 선택 / 해제"
                   >
                     <span
                       className="lcell lcell-check"
@@ -1322,12 +1460,15 @@ export default function App() {
           현장 등록 탭
           ════════════════════════════════════════ */}
       {tab === "register" && (
-        <div className="content">
-          <RegisterForm
-            defaultDate={getToday()}
-            onSubmit={handleAddReservation}
-            dayReservations={reservations}
-          />
+        <div className="content content-flex">
+          <div className="main-col">
+            <RegisterForm
+              defaultDate={getToday()}
+              onSubmit={handleAddReservation}
+              dayReservations={reservations}
+            />
+          </div>
+          <SlotStatusPanel totals={slotTotals} />
         </div>
       )}
     </div>
