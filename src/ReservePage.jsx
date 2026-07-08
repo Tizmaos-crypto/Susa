@@ -15,6 +15,34 @@ const LATE_NO = "아니요, 괜찮습니다. (기본 퇴실 시간 유지)";
 const ROOM_NOTE =
   '체크인 전 접수하시는 고객님께서는 "체크인전"으로 작성해주시기 바라며, 수영장 방문 시 확인을 위해 연락처와 배정받으신 객실번호를 직원에게 말씀 부탁드립니다.';
 
+/* ── 사이트 변형 (URL ?site=partner) ──
+   리조트(기본): 1·2부 특별 혜택 + 레이트 체크아웃 + 객실별 인원/혜택 안내
+   숙박업소(partner): 위 리조트 전용 항목 제거, 비치타월 안내만 한 줄 */
+const SITE_CONFIG = {
+  resort: {
+    showBenefits: true,
+    showRoomCapacityNotice: true,
+    showRoomNote: true,
+    lateCheckout: true,
+    beachTowelLine: false,
+  },
+  partner: {
+    showBenefits: false,
+    showRoomCapacityNotice: false,
+    showRoomNote: false,
+    lateCheckout: false,
+    beachTowelLine: true,
+  },
+};
+function getSiteConfig() {
+  try {
+    const s = new URLSearchParams(window.location.search).get("site");
+    return SITE_CONFIG[s] || SITE_CONFIG.resort;
+  } catch {
+    return SITE_CONFIG.resort;
+  }
+}
+
 function getToday() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -40,6 +68,7 @@ function resolveApiUrl() {
 
 export default function ReservePage() {
   const apiUrl = resolveApiUrl();
+  const config = getSiteConfig();
 
   const [step, setStep] = useState(0); // 0 = 이용 안내, 1~3 = 예약 위저드
   const [name, setName] = useState("");
@@ -93,16 +122,17 @@ export default function ReservePage() {
     slotKey &&
     !slotInfo(slotKey).closed;
 
+  const useLate = config.lateCheckout && !!selectedSlot && selectedSlot.late;
   const goFromStep1 = () => {
     if (!canNext1) return;
-    if (!selectedSlot.late) setLateCheckout(""); // 3·4부는 레이트 체크아웃 없음
-    setStep(selectedSlot.late ? 2 : 3);
+    if (!useLate) setLateCheckout(""); // 레이트 체크아웃 없는 경우 초기화
+    setStep(useLate ? 2 : 3);
   };
   const goFromStep2 = () => {
     if (!lateCheckout) return;
     setStep(3);
   };
-  const backFromStep3 = () => setStep(selectedSlot && selectedSlot.late ? 2 : 1);
+  const backFromStep3 = () => setStep(useLate ? 2 : 1);
 
   const handleSubmit = async () => {
     if (submitting) return;
@@ -119,7 +149,7 @@ export default function ReservePage() {
           date,
           timeSlot: selectedSlot.label,
           headcount: String(headcount),
-          lateCheckout: selectedSlot.late ? lateCheckout : "",
+          lateCheckout: useLate ? lateCheckout : "",
         }),
       });
       const json = await resp.json();
@@ -165,7 +195,7 @@ export default function ReservePage() {
             <Row label="예약 날짜" value={date} />
             <Row label="이용 시간" value={selectedSlot?.label} />
             <Row label="입장 인원" value={`${headcount}명`} />
-            {selectedSlot?.late && (
+            {useLate && (
               <Row label="레이트 체크아웃" value={lateCheckout} />
             )}
           </div>
@@ -191,8 +221,12 @@ export default function ReservePage() {
         {step >= 1 && (
           <div className="rsv-steps">
             <span className={step >= 1 ? "on" : ""}>1 신청</span>
-            <span className={step >= 2 ? "on" : ""}>2 혜택</span>
-            <span className={step >= 3 ? "on" : ""}>3 확인</span>
+            {config.lateCheckout && (
+              <span className={step >= 2 ? "on" : ""}>2 혜택</span>
+            )}
+            <span className={step >= 3 ? "on" : ""}>
+              {config.lateCheckout ? "3 확인" : "2 확인"}
+            </span>
           </div>
         )}
       </header>
@@ -209,22 +243,38 @@ export default function ReservePage() {
           </p>
 
           <section className="rsv-notice">
-            <h3>🚨 필독: 이용 횟수 안내 및 🎁 1·2부 특별 혜택</h3>
+            <h3>
+              {config.showBenefits
+                ? "🚨 필독: 이용 횟수 안내 및 🎁 1·2부 특별 혜택"
+                : "🚨 필독: 이용 횟수 안내"}
+            </h3>
             <p className="rsv-notice-sub">[이용 횟수 제한]</p>
             <p>
               본 시설은 <b>1박당 1일 1회</b>, 지정된 회차에만 이용 가능합니다. (중복 예약
               불가)
             </p>
-            <p className="rsv-notice-sub">[1·2부 예약 고객 특별 혜택]</p>
-            <p>오전 및 낮 시간대(1·2부) 예약 고객님께 다음 혜택을 제공합니다.</p>
-            <ul>
-              <li>혜택 1: 비치타월 객실당 1장 무료 대여</li>
-              <li>혜택 2: 객실 체크인 전 수영장 선(先) 입장 가능</li>
-              <li>혜택 3: 레이트 체크아웃 2시간 무료 제공</li>
-            </ul>
-            <p className="rsv-notice-fine">
-              ※ 상세 적용 절차는 프론트 데스크로 문의 바랍니다.
-            </p>
+
+            {config.showBenefits && (
+              <>
+                <p className="rsv-notice-sub">[1·2부 예약 고객 특별 혜택]</p>
+                <p>오전 및 낮 시간대(1·2부) 예약 고객님께 다음 혜택을 제공합니다.</p>
+                <ul>
+                  <li>혜택 1: 비치타월 객실당 1장 무료 대여</li>
+                  <li>혜택 2: 객실 체크인 전 수영장 선(先) 입장 가능</li>
+                  <li>혜택 3: 레이트 체크아웃 2시간 무료 제공</li>
+                </ul>
+                <p className="rsv-notice-fine">
+                  ※ 상세 적용 절차는 프론트 데스크로 문의 바랍니다.
+                </p>
+              </>
+            )}
+
+            {config.beachTowelLine && (
+              <>
+                <p className="rsv-notice-sub">[비치타월 안내]</p>
+                <p>비치타월을 객실당 1장 무료로 대여해 드립니다.</p>
+              </>
+            )}
           </section>
 
           <section className="rsv-notice">
@@ -259,12 +309,14 @@ export default function ReservePage() {
           <section className="rsv-notice">
             <h3>📌 이용 안내 및 유의사항</h3>
             <ul>
-              <li>
-                객실별 이용 인원 및 혜택: 로얄 객실 최대 4인, 스위트 객실 최대 6인까지 무료
-                이용 가능합니다. (무료 인원 초과 시 객실당 최대 2인까지 투숙객 50% 할인
-                금액으로 현장 결제 후 추가 입장 가능 / 최대 입장 인원: 로얄 총 6인, 스위트
-                총 8인)
-              </li>
+              {config.showRoomCapacityNotice && (
+                <li>
+                  객실별 이용 인원 및 혜택: 로얄 객실 최대 4인, 스위트 객실 최대 6인까지
+                  무료 이용 가능합니다. (무료 인원 초과 시 객실당 최대 2인까지 투숙객 50%
+                  할인 금액으로 현장 결제 후 추가 입장 가능 / 최대 입장 인원: 로얄 총 6인,
+                  스위트 총 8인)
+                </li>
+              )}
               <li>
                 입장 확인: 현장 수영·사우나 데스크에서 예약자 확인 후 입장하므로, 반드시
                 <b> '객실 예약자' 본인 성함</b>으로 작성해 주세요.
@@ -300,9 +352,9 @@ export default function ReservePage() {
               className="rsv-input"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
-              placeholder="예: B428 / 체크인전"
+              placeholder={config.showRoomNote ? "예: B428 / 체크인전" : "예: B428"}
             />
-            <p className="rsv-note">{ROOM_NOTE}</p>
+            {config.showRoomNote && <p className="rsv-note">{ROOM_NOTE}</p>}
           </Field>
 
           <Field label="입장 인원">
@@ -412,7 +464,7 @@ export default function ReservePage() {
             <Row label="예약 날짜" value={date} />
             <Row label="이용 시간" value={selectedSlot?.label} />
             <Row label="입장 인원" value={`${headcount}명`} />
-            {selectedSlot?.late && (
+            {useLate && (
               <Row label="레이트 체크아웃" value={lateCheckout || "—"} />
             )}
           </div>
