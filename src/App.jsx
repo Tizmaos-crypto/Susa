@@ -135,14 +135,11 @@ function engToKorean(input) {
   return out;
 }
 
-/* 성함 검색 매칭: 그대로 또는 영타→한글 변환본이 포함되면 일치 */
-function nameMatches(query, name) {
+/* 성함 검색 후보 생성: 원문 + 영타변환 + (CapsLock 대비)소문자 영타변환 */
+function nameQueryCandidates(query) {
   const q = String(query || "").trim();
-  if (!q) return true;
-  const target = String(name || "");
-  if (target.includes(q)) return true;
-  const ko = engToKorean(q);
-  return ko && ko !== q && target.includes(ko);
+  if (!q) return [];
+  return [...new Set([q, engToKorean(q), engToKorean(q.toLowerCase())].filter(Boolean))];
 }
 
 /* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
@@ -1028,11 +1025,14 @@ export default function App() {
   const formReservations = reservations.filter((r) => r.source !== "현장");
   /* 락커가 모두 반납된 예약(returnedAt)은 조회 목록에서 제외 (단, 명단 추출에는 포함) */
   const activeReservations = formReservations.filter((r) => !r.returnedAt);
+  const nameCands = nameQueryCandidates(searchName); // 한 번만 계산 (행마다 반복 X)
   const searchResults = activeReservations.filter((r) => {
     const roomOk =
       !searchRoom.trim() ||
       String(r.room).toUpperCase().includes(searchRoom.trim().toUpperCase());
-    const nameOk = nameMatches(searchName, r.name);
+    const nameOk =
+      nameCands.length === 0 ||
+      nameCands.some((c) => String(r.name).includes(c));
     return roomOk && nameOk;
   });
 
