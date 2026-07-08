@@ -20,6 +20,7 @@ const ROOM_NOTE =
    숙박업소(partner): 위 리조트 전용 항목 제거, 비치타월 안내만 한 줄 */
 const SITE_CONFIG = {
   resort: {
+    siteLabel: "휘닉스",
     showBenefits: true,
     showRoomCapacityNotice: true,
     showRoomNote: true,
@@ -27,6 +28,7 @@ const SITE_CONFIG = {
     beachTowelLine: false,
   },
   partner: {
+    siteLabel: "플캠",
     showBenefits: false,
     showRoomCapacityNotice: false,
     showRoomNote: false,
@@ -144,6 +146,7 @@ export default function ReservePage() {
         body: JSON.stringify({
           action: "addReservation",
           source: "", // 온라인 고객 예약
+          site: config.siteLabel, // 휘닉스 / 플캠
           name: name.trim(),
           room: room.trim(),
           date,
@@ -272,7 +275,7 @@ export default function ReservePage() {
             {config.beachTowelLine && (
               <>
                 <p className="rsv-notice-sub">[비치타월 안내]</p>
-                <p>비치타월을 객실당 1장 무료로 대여해 드립니다.</p>
+                <p>비치타월을 객실당 1장 무료로 대여해 드립니다. (1·2부에 한해)</p>
               </>
             )}
           </section>

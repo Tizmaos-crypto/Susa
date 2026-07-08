@@ -26,11 +26,12 @@
 //   J열: 메모                ← 선택사항
 //   K열: 락커 배정 시각        ← 웹앱에서 기록 (3시간 경과 확인용)
 //   L열: 반납 시각            ← 웹앱에서 기록 (반납=취소선 표시용, 조건부 서식)
+//   M열: 예약 경로            ← 웹앱에서 기록 (휘닉스=리조트, 플캠=연계 숙박업소)
 // ============================================================
 
 // ---------- 설정 ----------
 const SHEET_NAME = "설문지 응답 1";
-const NUM_COLS = 12;           // A~L
+const NUM_COLS = 13;           // A~M
 const SLOT_CAPACITY = 120;     // 각 시간부(1부~4부) 최대 정원
 const TIME_SLOTS = ["1부", "2부", "3부", "4부"];
 
@@ -88,6 +89,7 @@ function rowToObj(row, idx) {
     memo:      row[9] ? String(row[9]).trim() : "",    // J열: 메모
     assignedAt: row[10] ? String(row[10]) : "",        // K열: 락커 배정 시각
     returnedAt: row[11] ? String(row[11]) : "",        // L열: 반납 시각
+    site:      row[12] ? String(row[12]).trim() : "",  // M열: 예약 경로
   };
 }
 
@@ -217,6 +219,7 @@ function doPost(e) {
       const headcount   = parseHeadcount(body.headcount);
       const lateCheckout = String(body.lateCheckout || "").trim();
       const source      = String(body.source      || "").trim(); // "현장"=직원 등록, ""=온라인
+      const site        = String(body.site        || "").trim(); // "휘닉스" / "플캠"
       const locker      = String(body.locker      || "").trim();
       const memo        = String(body.memo        || "").trim();
 
@@ -234,11 +237,11 @@ function doPost(e) {
         }
       }
 
-      // A:ts B:이름 C:객실 D:날짜 E:시간부 F:입장인원 G:레이트체크아웃 H:구분 I:락커 J:메모 K:배정시각
+      // A:ts B:이름 C:객실 D:날짜 E:시간부 F:입장인원 G:레이트체크아웃 H:구분 I:락커 J:메모 K:배정시각 L:반납시각 M:예약경로
       const assignedAt = locker ? new Date() : "";
       sheet.appendRow([
         new Date(), name, room, date, timeSlot,
-        headcount || "", lateCheckout, source, locker, memo, assignedAt,
+        headcount || "", lateCheckout, source, locker, memo, assignedAt, "", site,
       ]);
       const rowIndex = sheet.getLastRow();
 
