@@ -254,6 +254,58 @@
   font-size: 15px;
 }
 
+/* ── 이용 안내(STEP 0) ── */
+.rsv-intro-lead {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: #374151;
+  margin: 0 0 18px;
+}
+.rsv-notice {
+  border-top: 1px solid #eef0f2;
+  padding-top: 16px;
+  margin-bottom: 16px;
+}
+.rsv-notice h3 {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0 0 12px;
+  line-height: 1.4;
+  color: #111827;
+}
+.rsv-notice-sub {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #2563eb;
+  margin: 14px 0 6px;
+}
+.rsv-notice p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #374151;
+  margin: 6px 0;
+}
+.rsv-notice ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.rsv-notice li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #374151;
+  margin: 7px 0;
+}
+.rsv-notice-fine {
+  font-size: 12.5px !important;
+  color: #6b7280 !important;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.rsv-intro .rsv-btn-primary {
+  margin-top: 10px;
+}
+
 /* ── 완료 화면 ── */
 .rsv-done {
   text-align: center;

@@ -4,9 +4,9 @@ import "./ReservePage.css";
 /* ── 시간부 정의 ── */
 const SLOTS = [
   { key: "1부", label: "1부 (10:00~13:00)", late: true },
-  { key: "2부", label: "2부 (13:30~16:00)", late: true },
-  { key: "3부", label: "3부 (16:30~18:30)", late: false },
-  { key: "4부", label: "4부 (19:00~21:00)", late: false },
+  { key: "2부", label: "2부 (13:30~15:30)", late: true },
+  { key: "3부", label: "3부 (16:00~18:00)", late: false },
+  { key: "4부", label: "4부 (18:30~21:00)", late: false },
 ];
 
 const LATE_YES = "네, 적용해 주세요.";
@@ -41,7 +41,7 @@ function resolveApiUrl() {
 export default function ReservePage() {
   const apiUrl = resolveApiUrl();
 
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // 0 = 이용 안내, 1~3 = 예약 위저드
   const [name, setName] = useState("");
   const [room, setRoom] = useState("");
   const [headcount, setHeadcount] = useState(1);
@@ -186,16 +186,102 @@ export default function ReservePage() {
   return (
     <div className="rsv-shell">
       <header className="rsv-header">
-        <div className="rsv-logo">🏨</div>
-        <h1>예약 신청</h1>
-        <div className="rsv-steps">
-          <span className={step >= 1 ? "on" : ""}>1 신청</span>
-          <span className={step >= 2 ? "on" : ""}>2 혜택</span>
-          <span className={step >= 3 ? "on" : ""}>3 확인</span>
-        </div>
+        <div className="rsv-logo">🏊</div>
+        <h1>수영장 이용 예약 접수</h1>
+        {step >= 1 && (
+          <div className="rsv-steps">
+            <span className={step >= 1 ? "on" : ""}>1 신청</span>
+            <span className={step >= 2 ? "on" : ""}>2 혜택</span>
+            <span className={step >= 3 ? "on" : ""}>3 확인</span>
+          </div>
+        )}
       </header>
 
       {error && <div className="rsv-error">{error}</div>}
+
+      {/* ── STEP 0: 이용 안내 (필독) ── */}
+      {step === 0 && (
+        <div className="rsv-card rsv-intro">
+          <p className="rsv-intro-lead">
+            쾌적하고 안전한 시설 이용을 위해 극성수기 기간 동안 수영장 및 사우나를
+            4부제 예약제로 운영합니다. 아래 유의사항을 반드시 확인하신 후 예약해 주시기
+            바랍니다.
+          </p>
+
+          <section className="rsv-notice">
+            <h3>🚨 필독: 이용 횟수 안내 및 🎁 1·2부 특별 혜택</h3>
+            <p className="rsv-notice-sub">[이용 횟수 제한]</p>
+            <p>
+              본 시설은 <b>1박당 1일 1회</b>, 지정된 회차에만 이용 가능합니다. (중복 예약
+              불가)
+            </p>
+            <p className="rsv-notice-sub">[1·2부 예약 고객 특별 혜택]</p>
+            <p>오전 및 낮 시간대(1·2부) 예약 고객님께 다음 혜택을 제공합니다.</p>
+            <ul>
+              <li>혜택 1: 비치타월 객실당 1장 무료 대여</li>
+              <li>혜택 2: 객실 체크인 전 수영장 선(先) 입장 가능</li>
+              <li>혜택 3: 레이트 체크아웃 2시간 무료 제공</li>
+            </ul>
+            <p className="rsv-notice-fine">
+              ※ 상세 적용 절차는 프론트 데스크로 문의 바랍니다.
+            </p>
+          </section>
+
+          <section className="rsv-notice">
+            <h3>⏰ 운영 시간 및 락커 배정 안내</h3>
+            <p className="rsv-notice-sub">[운영 시간]</p>
+            <ul>
+              <li>1부: 10:00 – 13:00</li>
+              <li>2부: 13:30 – 15:30</li>
+              <li>3부: 16:00 – 18:00 🚨 혼잡 예상 / 러시아워</li>
+              <li>4부: 18:30 – 21:00 🚨 혼잡 예상 / 러시아워</li>
+            </ul>
+            <p className="rsv-notice-fine">
+              각 회차 사이 30분은 수질 점검 및 락커룸 딥클리닝 등 시설 정비 시간입니다.
+              쾌적한 환경을 위해 퇴장 시간을 엄수해 주시기 바랍니다.
+            </p>
+            <p className="rsv-notice-sub">[사전 예약 인원 및 락커 배정]</p>
+            <ul>
+              <li>각 부당 사전 예약은 선착순 120명으로 마감되며, 예약자에게만 사우나 락커가 정상 배정됩니다.</li>
+              <li>
+                [노쇼 규정] 예약된 회차 시작 후 30분 경과 시 예약은 자동 취소되며, 락커는
+                현장 대기자에게 양도됩니다.
+              </li>
+              <li>
+                사전 예약 마감(120명 초과) 또는 노쇼 자동 취소 이후 현장 방문 시 입장은
+                가능하나, 락커 배정이 불가합니다. 이 경우 객실에서 수영복으로 환복 후 락커
+                키 없이 바로 입장하셔야 하므로 가급적 사전 예약을 권장합니다. (관련 법률에
+                따른 수영장 총 적정 수용 인원 기준 내에서 안전하게 운영됩니다.)
+              </li>
+            </ul>
+          </section>
+
+          <section className="rsv-notice">
+            <h3>📌 이용 안내 및 유의사항</h3>
+            <ul>
+              <li>
+                객실별 이용 인원 및 혜택: 로얄 객실 최대 4인, 스위트 객실 최대 6인까지 무료
+                이용 가능합니다. (무료 인원 초과 시 객실당 최대 2인까지 투숙객 50% 할인
+                금액으로 현장 결제 후 추가 입장 가능 / 최대 입장 인원: 로얄 총 6인, 스위트
+                총 8인)
+              </li>
+              <li>
+                입장 확인: 현장 수영·사우나 데스크에서 예약자 확인 후 입장하므로, 반드시
+                <b> '객실 예약자' 본인 성함</b>으로 작성해 주세요.
+              </li>
+              <li>
+                환경 정책: 도내 환경 정책 및 자원순환 규제에 따라 젖은 수영복을 담을 일회용
+                비닐봉투는 시설 내 무상 제공되지 않습니다. 개인용 방수 가방이나 다회용 가방을
+                지참해 주시기 바랍니다.
+              </li>
+            </ul>
+          </section>
+
+          <button className="rsv-btn rsv-btn-primary" onClick={() => setStep(1)}>
+            위 내용을 확인했습니다 · 예약 시작하기
+          </button>
+        </div>
+      )}
 
       {/* ── STEP 1: 예약 정보 ── */}
       {step === 1 && (

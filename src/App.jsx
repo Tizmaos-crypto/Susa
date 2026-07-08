@@ -4,9 +4,9 @@ import "./App.css";
 /* ── 시간부 정보 ── */
 const TIME_SLOTS = {
   "1부": "10:00 – 13:00",
-  "2부": "13:30 – 16:00",
-  "3부": "16:30 – 18:30",
-  "4부": "19:00 – 21:00",
+  "2부": "13:30 – 15:30",
+  "3부": "16:00 – 18:00",
+  "4부": "18:30 – 21:00",
 };
 
 function getToday() {
@@ -41,7 +41,7 @@ function normalizeRoom(s) {
 }
 
 /* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
-const SLOT_END_MIN = { "1부": 13 * 60, "2부": 16 * 60, "3부": 18 * 60 + 30, "4부": 21 * 60 };
+const SLOT_END_MIN = { "1부": 13 * 60, "2부": 15 * 60 + 30, "3부": 18 * 60, "4부": 21 * 60 };
 function getCurrentSlot() {
   const d = new Date();
   const mins = d.getHours() * 60 + d.getMinutes();
