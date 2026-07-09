@@ -822,6 +822,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [searchRoom, setSearchRoom] = useState("");
   const [searchName, setSearchName] = useState("");
+  const [searchSlot, setSearchSlot] = useState(""); // "" = 전체, "1부"~"4부" = 해당 부만
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [tab, setTab] = useState("register");
   const [keyQuery, setKeyQuery] = useState(""); // 락커 현황 키 검색
@@ -1136,7 +1137,8 @@ export default function App() {
     const nameOk =
       nameCands.length === 0 ||
       nameCands.some((c) => String(r.name).includes(c));
-    return roomOk && nameOk;
+    const slotOk = !searchSlot || matchSlot(r.timeSlot) === searchSlot;
+    return roomOk && nameOk && slotOk;
   });
 
   /* ── 부별 실시간 예약 인원 (선택 날짜 기준, 전체 인원 합산) ── */
@@ -1338,6 +1340,21 @@ export default function App() {
                 placeholder="예: A102 (ㅁ102도 인식)"
               />
             </div>
+            <div className="search-field search-slot">
+              <label className="label">시간(부)</label>
+              <select
+                className="input"
+                value={searchSlot}
+                onChange={(e) => setSearchSlot(e.target.value)}
+              >
+                <option value="">전체</option>
+                {Object.entries(TIME_SLOTS).map(([k, time]) => (
+                  <option key={k} value={k}>
+                    {k} ({time})
+                  </option>
+                ))}
+              </select>
+            </div>
             <button className="btn btn-default search-refresh" onClick={handleRefresh}>
               {loading ? "갱신중…" : "🔄 새로고침"}
             </button>
@@ -1349,7 +1366,7 @@ export default function App() {
             <div className="empty-state">
               <div className="emoji">📋</div>
               <p>
-                {searchRoom.trim() || searchName.trim()
+                {searchRoom.trim() || searchName.trim() || searchSlot
                   ? "검색 결과가 없습니다"
                   : "조회된 예약이 없습니다"}
               </p>
