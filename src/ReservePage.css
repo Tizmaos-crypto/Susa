@@ -238,6 +238,20 @@
   margin: 0 0 16px;
 }
 
+/* ── 중요 안내 배너 (모든 단계 상단 고정 노출) ── */
+.rsv-stay-banner {
+  max-width: 520px;
+  margin: 0 auto 14px;
+  background: #fffbeb;
+  border: 1.5px solid #f59e0b;
+  color: #92400e;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 15.5px;
+  font-weight: 800;
+  text-align: center;
+}
+
 /* ── 오류 / 안내 ── */
 .rsv-error {
   max-width: 520px;

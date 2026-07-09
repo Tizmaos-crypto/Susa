@@ -26,6 +26,9 @@ const SITE_CONFIG = {
     showRoomNote: true,
     lateCheckout: true,
     beachTowelLine: false,
+    roomPlaceholder: "예: B428 / 체크인전",
+    maxHeadcount: 8,
+    stayOnlyNotice: false, // "투숙 중에만 이용 가능" 상단 배너
   },
   partner: {
     siteLabel: "플캠",
@@ -34,6 +37,9 @@ const SITE_CONFIG = {
     showRoomNote: false,
     lateCheckout: false,
     beachTowelLine: true,
+    roomPlaceholder: "예: 1201", // 플캠엔 A/B/C동 없음 (매니저 제시 형식)
+    maxHeadcount: 2,
+    stayOnlyNotice: true,
   },
 };
 function getSiteConfig() {
@@ -234,6 +240,11 @@ export default function ReservePage() {
         )}
       </header>
 
+      {/* 모든 단계에서 보이는 중요 안내 (플캠) */}
+      {config.stayOnlyNotice && (
+        <div className="rsv-stay-banner">⚠️ 투숙 중에만 이용 가능합니다.</div>
+      )}
+
       {error && <div className="rsv-error">{error}</div>}
 
       {/* ── STEP 0: 이용 안내 (필독) ── */}
@@ -355,7 +366,7 @@ export default function ReservePage() {
               className="rsv-input"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
-              placeholder={config.showRoomNote ? "예: B428 / 체크인전" : "예: B428"}
+              placeholder={config.roomPlaceholder}
             />
             {config.showRoomNote && <p className="rsv-note">{ROOM_NOTE}</p>}
           </Field>
@@ -366,7 +377,7 @@ export default function ReservePage() {
               value={headcount}
               onChange={(e) => setHeadcount(Number(e.target.value))}
             >
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+              {Array.from({ length: config.maxHeadcount }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
                   {n}명
                 </option>
