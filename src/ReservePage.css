@@ -238,6 +238,21 @@
   margin: 0 0 16px;
 }
 
+/* ── 경고성 안내 문단 (레이트 체크아웃 퇴실 당일 불가 등) ── */
+.rsv-warn-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  padding: 11px 13px;
+  margin: 10px 0 14px;
+}
+.rsv-warn-note b {
+  font-weight: 800;
+}
+
 /* ── 중요 안내 배너 (모든 단계 상단 고정 노출) ── */
 .rsv-stay-banner {
   max-width: 520px;

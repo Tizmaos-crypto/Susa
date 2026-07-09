@@ -277,6 +277,11 @@ export default function ReservePage() {
                   <li>혜택 2: 객실 체크인 전 수영장 선(先) 입장 가능</li>
                   <li>혜택 3: 레이트 체크아웃 2시간 무료 제공</li>
                 </ul>
+                <p className="rsv-warn-note">
+                  ⚠️ 레이트 체크아웃은 <b>퇴실 당일 이용 시 적용되지 않습니다.</b> 혜택
+                  명단이 이용 당일 수영장 마감 후 객실 프론트로 전달되기 때문에, 수영장
+                  이용일과 퇴실일이 같은 경우에는 적용이 불가합니다.
+                </p>
                 <p className="rsv-notice-fine">
                   ※ 상세 적용 절차는 프론트 데스크로 문의 바랍니다.
                 </p>
@@ -442,6 +447,10 @@ export default function ReservePage() {
       {step === 2 && (
         <div className="rsv-card">
           <h2 className="rsv-q">[레이트 체크아웃 2시간 무료] 혜택을 적용하시겠습니까?</h2>
+          <p className="rsv-warn-note">
+            ⚠️ <b>퇴실 당일 이용 고객님은 적용 대상이 아닙니다.</b> 혜택 명단이 이용
+            당일 수영장 마감 후 객실 프론트로 전달되기 때문입니다.
+          </p>
           <div className="rsv-radio-group">
             {[LATE_YES, LATE_NO].map((opt) => (
               <button
