@@ -255,97 +255,11 @@ function doPost(e) {
 }
 
 // ============================================================
-//  [선택 기능] 정원이 차면 구글 폼의 시간부 선택지를 자동 차단
+//  [제거된 기능] 구글폼 시간부 자동 마감 (2026-07-10 폐기)
 // ------------------------------------------------------------
-//  * "항상 특정 한 날짜만 예약받는" 운영에서만 의미가 있습니다.
-//    (폼 선택지는 날짜 공통 1개라 날짜별로 다르게 막을 수 없음)
-//  * 마감된 부는 선택지에서 "제거"되어 고객이 고를 수 없게 됩니다.
-//    질문 설명에는 "마감: 3부" 형태로 표시됩니다.
-//
-//  [설치]
-//   1. 아래 RESERVATION_DATE / SLOT_LABELS 를 운영에 맞게 확인
-//   2. 편집기 함수 목록에서 createFormSlotTriggers 선택 후 ▶실행
-//      (최초 1회 — 폼 수정 권한 승인 팝업이 뜨면 허용)
-//   → 이후 폼 제출마다 + 5분마다 자동으로 마감 부가 갱신됩니다.
+//  웹앱 예약 전환으로 구글폼 채널이 다음 주 종료 예정이라
+//  updateFormSlots / createFormSlotTriggers 및 관련 트리거를 제거했다.
+//  (폼 선택지는 날짜 공통이라 날짜별 마감이 원리상 불가능했던 기능)
+//  ⚠️ Apps Script의 ⏰트리거 메뉴에서 updateFormSlots 트리거 2개
+//     (폼 제출 시 / 5분마다)를 삭제한 뒤 이 파일로 교체할 것.
 // ============================================================
-
-// "" = 오늘 날짜 기준, 또는 "2026-06-20" 처럼 특정일로 고정
-const RESERVATION_DATE = "";
-
-// 폼에 표시될 각 부의 선택지 라벨 (이 텍스트로 폼 선택지를 다시 씁니다)
-// "N부"만 들어 있으면 시트 집계는 정상 동작하므로 문구는 자유롭게 바꿔도 됩니다.
-const SLOT_LABELS = {
-  "1부": "1부 (10:00~13:00)",
-  "2부": "2부 (13:30~16:00)",
-  "3부": "3부 (16:30~18:30)",
-  "4부": "4부 (19:00~21:00)",
-};
-
-// 폼 자동 열기: 비워두면 이 시트에 연결된 폼을 사용. 안 되면 폼 "편집 URL"을 직접 넣으세요.
-const FORM_EDIT_URL = "";
-
-function getLinkedForm_() {
-  const url =
-    FORM_EDIT_URL ||
-    SpreadsheetApp.getActiveSpreadsheet().getFormUrl();
-  if (!url) throw new Error("연결된 폼을 찾을 수 없습니다. FORM_EDIT_URL에 폼 편집 URL을 넣어주세요.");
-  return FormApp.openByUrl(url);
-}
-
-function currentReservationDate_() {
-  if (RESERVATION_DATE) return RESERVATION_DATE;
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-// 폼에서 시간부(1~4부) 선택 문항을 찾는다 (제목에 "시간" 포함하는 객관식/드롭다운)
-function findSlotItem_(form) {
-  const items = form.getItems();
-  let fallback = null;
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i];
-    const type = it.getType();
-    if (type !== FormApp.ItemType.MULTIPLE_CHOICE && type !== FormApp.ItemType.LIST) continue;
-    if (it.getTitle().indexOf("시간") >= 0) return it;
-    if (!fallback) fallback = it; // 제목 못 찾으면 첫 객관식/드롭다운으로 대체
-  }
-  return fallback;
-}
-
-// 마감된 부를 폼 선택지에서 제거 / 빈 부는 다시 추가 (멱등)
-function updateFormSlots() {
-  const date = currentReservationDate_();
-  const avail = computeAvailability(date);
-
-  const form = getLinkedForm_();
-  const item = findSlotItem_(form);
-  if (!item) throw new Error("폼에서 시간부 선택 문항을 찾지 못했습니다. (제목에 '시간' 포함 필요)");
-
-  const openLabels = [];
-  const closed = [];
-  TIME_SLOTS.forEach((s) => {
-    if (avail.slots[s].full) closed.push(s);
-    else openLabels.push(SLOT_LABELS[s] || s);
-  });
-
-  // 전 부 마감이면 폼이 깨지지 않도록 안내용 1개를 남긴다
-  const values = openLabels.length ? openLabels : ["오늘은 예약이 마감되었습니다"];
-
-  if (item.getType() === FormApp.ItemType.LIST) {
-    item.asListItem().setChoiceValues(values);
-  } else {
-    item.asMultipleChoiceItem().setChoiceValues(values);
-  }
-  item.setHelpText(closed.length ? `마감: ${closed.join(", ")} (${date} 기준 · 각 부 ${SLOT_CAPACITY}명)` : "");
-}
-
-// 최초 1회 실행: 폼 제출 트리거 + 5분 주기 트리거 설치 (중복 제거 후)
-function createFormSlotTriggers() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  ScriptApp.getProjectTriggers().forEach((t) => {
-    if (t.getHandlerFunction() === "updateFormSlots") ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger("updateFormSlots").forSpreadsheet(ss).onFormSubmit().create();
-  ScriptApp.newTrigger("updateFormSlots").timeBased().everyMinutes(5).create();
-  updateFormSlots(); // 즉시 1회 반영
-}
