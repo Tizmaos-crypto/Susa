@@ -1015,6 +1015,82 @@ select.input option {
   color: #3730a3;
   white-space: nowrap;
 }
+.site-chip-resort {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+/* ── 예약자 검색 탭 (전 날짜) ── */
+.guest-hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: -10px 0 16px;
+}
+.guest-hint b {
+  color: var(--accent-light);
+}
+.guest-table {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.guest-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.guest-row:last-child {
+  border-bottom: none;
+}
+.gcell-date {
+  font-weight: 800;
+  color: var(--text);
+  min-width: 110px;
+}
+.gcell-slot {
+  font-weight: 800;
+  color: var(--accent-light);
+  min-width: 34px;
+}
+.gcell-name {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: var(--text);
+  min-width: 76px;
+}
+.gcell-room {
+  font-weight: 600;
+  min-width: 64px;
+}
+.gcell-ts {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.chip-late {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  white-space: nowrap;
+}
+.chip-etc {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
 /* ── 예약 조회: 중복 예약 뱃지 ── */
 .dup-badge {

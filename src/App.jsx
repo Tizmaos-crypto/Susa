@@ -22,6 +22,14 @@ function parseDate(str) {
   return str;
 }
 
+/* 접수 시각(타임스탬프)을 "7/10 14:23" 형태로 축약 */
+function formatTimestamp(raw) {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (isNaN(d)) return String(raw);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 function matchSlot(raw) {
   if (!raw) return raw;
   for (const key of Object.keys(TIME_SLOTS)) {
@@ -823,6 +831,12 @@ export default function App() {
   const [searchRoom, setSearchRoom] = useState("");
   const [searchName, setSearchName] = useState("");
   const [searchSlot, setSearchSlot] = useState(""); // "" = 전체, "1부"~"4부" = 해당 부만
+  /* 예약자 검색 (전 날짜) — 탭 열 때 한 번만 로드, 필터는 클라이언트 처리 */
+  const [guestName, setGuestName] = useState("");
+  const [guestRoom, setGuestRoom] = useState("");
+  const [allRes, setAllRes] = useState([]);
+  const [allLoading, setAllLoading] = useState(false);
+  const [allError, setAllError] = useState("");
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [tab, setTab] = useState("register");
   const [keyQuery, setKeyQuery] = useState(""); // 락커 현황 키 검색
@@ -885,6 +899,30 @@ export default function App() {
   useEffect(() => {
     if (apiUrl) fetchData("", "", selectedDate);
   }, [apiUrl]); // eslint-disable-line
+
+  /* ── 예약자 검색: 전 날짜 데이터 로드 (탭 열 때 1회 + 수동 새로고침만, 반복 조회 없음) ── */
+  const fetchAllDates = useCallback(async () => {
+    if (!apiUrl) return;
+    setAllLoading(true);
+    setAllError("");
+    try {
+      const resp = await fetch(apiUrl); // 날짜 필터 없이 전체
+      const json = await resp.json();
+      if (json.error) {
+        setAllError(json.error);
+      } else {
+        setAllRes(json.reservations || []);
+      }
+    } catch {
+      setAllError("서버 연결 실패 — 잠시 후 다시 시도해주세요.");
+    } finally {
+      setAllLoading(false);
+    }
+  }, [apiUrl]);
+
+  useEffect(() => {
+    if (tab === "guest") fetchAllDates();
+  }, [tab, fetchAllDates]);
 
   /* ── 자동 새로고침 (모든 탭에서 하루치 전체를 주기적으로 갱신) ── */
   useEffect(() => {
@@ -1183,6 +1221,48 @@ export default function App() {
     if (s in slotDupExtras) slotDupExtras[s] += Number(r.headcount) || 0;
   });
 
+  /* ── 예약자 검색 (전 날짜): 필터 + 이용일·부·접수순 정렬 ── */
+  const guestNameCands = nameQueryCandidates(guestName);
+  const guestHasQuery = Boolean(guestName.trim() || guestRoom.trim());
+  const guestResults = !guestHasQuery
+    ? []
+    : allRes
+        .filter((r) => {
+          const roomOk =
+            !guestRoom.trim() ||
+            normalizeRoom(r.room).includes(normalizeRoom(guestRoom));
+          const nameOk =
+            guestNameCands.length === 0 ||
+            guestNameCands.some((c) => String(r.name).includes(c));
+          return roomOk && nameOk;
+        })
+        .sort(
+          (a, b) =>
+            parseDate(a.date).localeCompare(parseDate(b.date)) ||
+            slotOrder(a.timeSlot) - slotOrder(b.timeSlot) ||
+            a.rowIndex - b.rowIndex
+        );
+
+  /* 전 날짜 중복 판정: 같은 이용일 + 같은 시설 + 같은 객실이 2건 이상 (예약 조회와 동일 기준) */
+  const allDupStats = {};
+  allRes.forEach((r) => {
+    if (r.source === "현장" || r.returnedAt) return;
+    const rk = normalizeRoom(r.room);
+    if (!rk || rk.includes("체크인")) return;
+    const key = `${parseDate(r.date)}|${r.site || "휘닉스"}|${rk}`;
+    if (!allDupStats[key]) allDupStats[key] = { count: 0, firstRow: r.rowIndex };
+    allDupStats[key].count += 1;
+    if (r.rowIndex < allDupStats[key].firstRow) allDupStats[key].firstRow = r.rowIndex;
+  });
+  const guestDupBadge = (r) => {
+    if (r.source === "현장" || r.returnedAt) return null;
+    const rk = normalizeRoom(r.room);
+    if (!rk || rk.includes("체크인")) return null;
+    const stat = allDupStats[`${parseDate(r.date)}|${r.site || "휘닉스"}|${rk}`];
+    if (!stat || stat.count < 2) return null;
+    return r.rowIndex === stat.firstRow ? "first" : "extra";
+  };
+
   /* ── 레이트 체크아웃 희망 명단 (G열 "적용" 응답, 반납 객실도 포함) ──
      플캠(연계 숙박업소)은 프로모션 대상이 아니므로 정산 명단에서 제외 */
   const lateCheckoutList = formReservations.filter(
@@ -1286,6 +1366,12 @@ export default function App() {
           onClick={() => setTab("register")}
         >
           🚶 현장 등록
+        </button>
+        <button
+          className={`tab-btn ${tab === "guest" ? "active" : ""}`}
+          onClick={() => setTab("guest")}
+        >
+          📞 예약자 검색
         </button>
       </div>
 
@@ -1622,6 +1708,95 @@ export default function App() {
             />
           </div>
           <SlotStatusPanel totals={slotTotals} dupExtras={slotDupExtras} />
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════
+          예약자 검색 탭 (전 날짜 · 전화 문의 대응)
+          ════════════════════════════════════════ */}
+      {tab === "guest" && (
+        <div className="content">
+          <div className="search-bar">
+            <div className="search-field">
+              <label className="label">예약자 성함</label>
+              <input
+                className="input"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                placeholder="예: 홍길동 (영타 rla=김 도 인식)"
+                autoFocus
+              />
+            </div>
+            <div className="search-field">
+              <label className="label">객실 호수</label>
+              <input
+                className="input"
+                value={guestRoom}
+                onChange={(e) => setGuestRoom(fixRoomInput(e.target.value))}
+                placeholder="예: A102"
+              />
+            </div>
+            <button
+              className="btn btn-default search-refresh"
+              onClick={fetchAllDates}
+            >
+              {allLoading ? "갱신중…" : "🔄 새로고침"}
+            </button>
+          </div>
+          <div className="guest-hint">
+            📅 오늘뿐 아니라 <b>모든 날짜</b>의 예약에서 찾습니다 · 총 {allRes.length}건
+            불러옴
+          </div>
+
+          {allError && <div className="error-msg">{allError}</div>}
+
+          {!guestHasQuery ? (
+            <div className="empty-state">
+              <div className="emoji">📞</div>
+              <p>성함 또는 객실 호수를 입력하면 전체 날짜에서 검색됩니다</p>
+            </div>
+          ) : allLoading && guestResults.length === 0 ? (
+            <div className="empty-state">
+              <div className="emoji">⏳</div>
+              <p>불러오는 중…</p>
+            </div>
+          ) : guestResults.length === 0 ? (
+            <div className="empty-state">
+              <div className="emoji">🔍</div>
+              <p>검색 결과가 없습니다</p>
+            </div>
+          ) : (
+            <div className="guest-table">
+              {guestResults.map((r) => {
+                const dup = guestDupBadge(r);
+                const slot = matchSlot(r.timeSlot);
+                const wantsLate = String(r.lateCheckout || "").includes("적용");
+                return (
+                  <div key={r.rowIndex} className="guest-row">
+                    <span className="gcell-date">이용 {parseDate(r.date)}</span>
+                    <span className="gcell-slot">{slot || "—"}</span>
+                    <span className="gcell-name">{r.name || "(무명)"}</span>
+                    <span className="gcell-room">{r.room}</span>
+                    <span
+                      className={`site-chip ${r.site === "플캠" ? "" : "site-chip-resort"}`}
+                    >
+                      {r.site || "휘닉스"}
+                    </span>
+                    {wantsLate && <span className="chip-late">레이트 체크아웃</span>}
+                    {dup === "first" && (
+                      <span className="dup-badge dup-first">🥇 첫 예약</span>
+                    )}
+                    {dup === "extra" && (
+                      <span className="dup-badge dup-extra">중복 예약</span>
+                    )}
+                    {r.source === "현장" && <span className="chip-etc">현장</span>}
+                    {r.returnedAt && <span className="chip-etc">반납됨</span>}
+                    <span className="gcell-ts">접수 {formatTimestamp(r.timestamp)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
