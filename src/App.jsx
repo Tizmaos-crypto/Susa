@@ -135,6 +135,20 @@ function engToKorean(input) {
   return out;
 }
 
+/* 객실 입력 보정: 한글 자판으로 친 동 접두사를 영문으로 치환
+   (ㅁ=A, ㅠ=B, ㅊ=C, ㅔ=P, ㅗ=H 등 — 자모를 해당 키의 영문자로) */
+const KO2EN = Object.entries(EN2KO).reduce((acc, [en, ko]) => {
+  if (!(ko in acc)) acc[ko] = en.toUpperCase();
+  return acc;
+}, {});
+function fixRoomInput(s) {
+  return String(s)
+    .split("")
+    .map((ch) => KO2EN[ch] || ch)
+    .join("")
+    .toUpperCase();
+}
+
 /* 성함 검색 후보 생성: 원문 + 영타변환 + (CapsLock 대비)소문자 영타변환 */
 function nameQueryCandidates(query) {
   const q = String(query || "").trim();
@@ -378,7 +392,18 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
   const [savedMsg, setSavedMsg] = useState("");
 
   const roomRef = useRef(null);
+  const lockerFirstRef = useRef(null); // 객실에서 Tab → 락커 첫 칸 바로 이동
+  const composingRef = useRef(false); // 한글 IME 조합 중 여부 (조합 중 변환 금지)
   const canSubmit = room.trim() && parseInt(headcount, 10) >= 1 && !saving;
+
+  /* 유효한 락커 수만큼 입장 인원 자동 반영 (락커 없이 등록하는 경우는 기본 1 유지) */
+  useEffect(() => {
+    const n = tokens.filter((t) => {
+      const p = parseShorthand(t);
+      return p && p.number.trim();
+    }).length;
+    if (n >= 1) setHeadcount(String(n));
+  }, [tokens]);
 
   /* 입력한 객실이 오늘 이미 예약/입장했는지 (추가 입장·다른 부 재입장 판별용) */
   const roomKey = normalizeRoom(room);
@@ -421,7 +446,7 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
         <span className="register-icon">🚶</span>
         <div>
           <h2>현장 고객 등록</h2>
-          <p>객실 → Tab → 인원 → Tab → 락커 → Enter 로 빠르게 등록하세요.</p>
+          <p>객실 → Tab → 락커 → Enter. 인원은 락커 수만큼 자동 반영됩니다.</p>
         </div>
       </div>
 
@@ -433,14 +458,30 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
             ref={roomRef}
             className="input"
             value={room}
-            onChange={(e) => setRoom(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            placeholder="예: A102"
+            onCompositionStart={() => (composingRef.current = true)}
+            onCompositionEnd={(e) => {
+              composingRef.current = false;
+              setRoom(fixRoomInput(e.target.value));
+            }}
+            onChange={(e) =>
+              setRoom(
+                composingRef.current ? e.target.value : fixRoomInput(e.target.value)
+              )
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSubmit();
+              else if (e.key === "Tab" && !e.shiftKey) {
+                // 인원 칸 건너뛰고 락커로 (인원은 락커 수 자동 반영)
+                e.preventDefault();
+                if (lockerFirstRef.current) lockerFirstRef.current.focus();
+              }
+            }}
+            placeholder="예: A102 (ㅁ102도 인식)"
             autoFocus
           />
         </div>
         <div>
-          <label className="label">입장 인원 *</label>
+          <label className="label">입장 인원 * (락커 수 자동)</label>
           <input
             type="number"
             min="1"
@@ -480,7 +521,12 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
 
       {/* 락커 약식 입력 */}
       <div style={{ marginTop: 18 }}>
-        <LockerEditor tokens={tokens} setTokens={setTokens} onEnter={handleSubmit} />
+        <LockerEditor
+          tokens={tokens}
+          setTokens={setTokens}
+          onEnter={handleSubmit}
+          firstInputRef={lockerFirstRef}
+        />
       </div>
 
       {/* 날짜 · 시간부 */}
@@ -770,6 +816,7 @@ export default function App() {
   const fetchId = useRef(0);
   const mutationCount = useRef(0); // 진행 중인 저장/반납 수 (새로고침 경쟁 방지)
   const lastMutationAt = useRef(0); // 마지막 변경 완료 시각 (낡은 응답 폐기 기준)
+  const searchComposingRef = useRef(false); // 객실 검색 한글 IME 조합 중 여부
 
   /* ── API URL 저장 ── */
   const saveUrl = (url) => {
@@ -1251,8 +1298,19 @@ export default function App() {
               <input
                 className="input"
                 value={searchRoom}
-                onChange={(e) => setSearchRoom(e.target.value.toUpperCase())}
-                placeholder="예: A102"
+                onCompositionStart={() => (searchComposingRef.current = true)}
+                onCompositionEnd={(e) => {
+                  searchComposingRef.current = false;
+                  setSearchRoom(fixRoomInput(e.target.value));
+                }}
+                onChange={(e) =>
+                  setSearchRoom(
+                    searchComposingRef.current
+                      ? e.target.value
+                      : fixRoomInput(e.target.value)
+                  )
+                }
+                placeholder="예: A102 (ㅁ102도 인식)"
               />
             </div>
             <button className="btn btn-default search-refresh" onClick={handleRefresh}>
