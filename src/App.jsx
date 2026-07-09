@@ -174,14 +174,15 @@ function serializeLockers(lockers) {
     .join(", ");
 }
 
-/* 약식 락커 입력 파싱: "M12" → 남 12, "W23" → 여 23 (남/여 한글도 허용) */
+/* 약식 락커 입력 파싱: "M12" → 남 12, "W23" → 여 23 (남/여 한글도 허용)
+   한/영 전환 없이 친 경우도 인식: M키=ㅡ, W키=ㅈ */
 function parseShorthand(token) {
   const t = String(token).trim();
   if (!t) return null;
   const first = t[0];
-  if (first === "M" || first === "m" || first === "남")
+  if (first === "M" || first === "m" || first === "남" || first === "ㅡ")
     return { gender: "남", number: t.slice(1).trim() };
-  if (first === "W" || first === "w" || first === "여")
+  if (first === "W" || first === "w" || first === "여" || first === "ㅈ")
     return { gender: "여", number: t.slice(1).trim() };
   return { gender: "남", number: t }; // 접두사 없으면 남자로 간주
 }
@@ -353,7 +354,7 @@ function matchKeyQuery(query, item) {
   // 객실 부분 일치
   if (String(item.r.room).toUpperCase().includes(q.toUpperCase())) return true;
   // 키 매칭
-  const hasGender = "MmWw남여".includes(q[0]);
+  const hasGender = "MmWw남여ㅡㅈ".includes(q[0]); // ㅡ=M키, ㅈ=W키 (한글 자판)
   if (hasGender) {
     const p = parseShorthand(q);
     const num = p.number.trim();
