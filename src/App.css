@@ -965,6 +965,17 @@ select.input option {
   opacity: 0.85;
 }
 
+/* ── 예약 조회: 예약 경로 표시 (플캠) ── */
+.site-chip {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #3730a3;
+  white-space: nowrap;
+}
+
 /* ── 예약 조회: 중복 예약 뱃지 ── */
 .dup-badge {
   font-size: 12px;

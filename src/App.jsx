@@ -589,6 +589,7 @@ function ReservationCard({ r, onUpdate, dupBadge }) {
         {/* 상단: 예약자 성함(우선) + 시간부 */}
         <div className="card-top">
           <div className="name-lead">{r.name || "(성함 없음)"}</div>
+          {r.site === "플캠" && <span className="site-chip">플캠</span>}
           {dupBadge === "first" && (
             <span className="dup-badge dup-first">🥇 첫 예약</span>
           )}
@@ -1084,17 +1085,26 @@ export default function App() {
     if (s in slotTotals) slotTotals[s] += Number(r.headcount) || 0;
   });
 
-  /* 같은 객실이 여러 부에 중복 예약한 경우: 가장 먼저 접수된(rowIndex 최소) 건이 "첫 예약" */
+  /* 같은 객실이 여러 부에 중복 예약한 경우: 가장 먼저 접수된(rowIndex 최소) 건이 "첫 예약"
+     - "체크인전"은 실제 객실이 아니므로 제외 (서로 다른 고객이 같은 문구를 적음)
+     - 예약 경로(휘닉스/플캠)를 키에 포함: 두 시설의 같은 호수는 다른 방 */
+  const dupKeyFor = (r) => {
+    const roomKey = normalizeRoom(r.room);
+    if (!roomKey || roomKey.includes("체크인")) return null;
+    return `${r.site || ""}|${roomKey}`;
+  };
   const roomStats = {};
   activeReservations.forEach((r) => {
-    const key = normalizeRoom(r.room);
+    const key = dupKeyFor(r);
     if (!key) return;
     if (!roomStats[key]) roomStats[key] = { count: 0, firstRow: r.rowIndex };
     roomStats[key].count += 1;
     if (r.rowIndex < roomStats[key].firstRow) roomStats[key].firstRow = r.rowIndex;
   });
   const dupBadgeFor = (r) => {
-    const stat = roomStats[normalizeRoom(r.room)];
+    const key = dupKeyFor(r);
+    if (!key) return null;
+    const stat = roomStats[key];
     if (!stat || stat.count < 2) return null;
     return r.rowIndex === stat.firstRow ? "first" : "extra";
   };
