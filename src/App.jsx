@@ -370,14 +370,14 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
   const [room, setRoom] = useState("");
   const [date, setDate] = useState(defaultDate);
   const [timeSlot, setTimeSlot] = useState(getCurrentSlot);
-  const [headcount, setHeadcount] = useState("");
+  const [headcount, setHeadcount] = useState("1"); // 기본 1명 (비면 잔여 카운트에 0으로 잡히므로 필수)
   const [tokens, setTokens] = useState([""]); // 약식 락커 입력 칸들
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
 
   const roomRef = useRef(null);
-  const canSubmit = room.trim() && !saving;
+  const canSubmit = room.trim() && parseInt(headcount, 10) >= 1 && !saving;
 
   /* 입력한 객실이 오늘 이미 예약/입장했는지 (추가 입장·다른 부 재입장 판별용) */
   const roomKey = normalizeRoom(room);
@@ -403,7 +403,7 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
     if (ok) {
       // 연속 등록 편의: 날짜·시간부는 유지하고 나머지만 초기화
       setRoom("");
-      setHeadcount("");
+      setHeadcount("1");
       setTokens([""]);
       setMemo("");
       setTimeSlot(getCurrentSlot()); // 시간 흐름 반영
@@ -420,22 +420,37 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
         <span className="register-icon">🚶</span>
         <div>
           <h2>현장 고객 등록</h2>
-          <p>객실 → Tab → 락커 → Enter 만으로 빠르게 등록하세요.</p>
+          <p>객실 → Tab → 인원 → Tab → 락커 → Enter 로 빠르게 등록하세요.</p>
         </div>
       </div>
 
-      {/* 객실 */}
-      <div>
-        <label className="label">객실 호수 *</label>
-        <input
-          ref={roomRef}
-          className="input"
-          value={room}
-          onChange={(e) => setRoom(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          placeholder="예: A102"
-          autoFocus
-        />
+      {/* 객실 + 입장 인원 (인원은 잔여 카운트에 반영되므로 필수) */}
+      <div className="register-grid">
+        <div>
+          <label className="label">객실 호수 *</label>
+          <input
+            ref={roomRef}
+            className="input"
+            value={room}
+            onChange={(e) => setRoom(e.target.value.toUpperCase())}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            placeholder="예: A102"
+            autoFocus
+          />
+        </div>
+        <div>
+          <label className="label">입장 인원 *</label>
+          <input
+            type="number"
+            min="1"
+            inputMode="numeric"
+            className="input"
+            value={headcount}
+            onChange={(e) => setHeadcount(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            placeholder="예: 2"
+          />
+        </div>
       </div>
 
       {/* 이미 등록된 객실 안내 (추가 입장 / 다른 부 재입장 판별) */}
@@ -494,28 +509,14 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
         </div>
       </div>
 
-      <div className="register-grid" style={{ marginTop: 14 }}>
-        <div>
-          <label className="label">입장 인원</label>
-          <input
-            type="number"
-            min="1"
-            inputMode="numeric"
-            className="input"
-            value={headcount}
-            onChange={(e) => setHeadcount(e.target.value)}
-            placeholder="예: 2"
-          />
-        </div>
-        <div className="memo-row">
-          <label className="label">메모</label>
-          <input
-            className="input"
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            placeholder="비고 사항"
-          />
-        </div>
+      <div className="memo-row" style={{ marginTop: 14 }}>
+        <label className="label">메모</label>
+        <input
+          className="input"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          placeholder="비고 사항"
+        />
       </div>
 
       <button
