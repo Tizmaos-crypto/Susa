@@ -84,6 +84,9 @@
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   padding: 0 28px;
+  position: sticky; /* 스크롤해도 탭 바 상단 고정 */
+  top: 0;
+  z-index: 100;
 }
 .tab-btn {
   background: transparent;
@@ -137,7 +140,7 @@
 .slot-aside {
   flex: 0 0 260px;
   position: sticky;
-  top: 16px;
+  top: 64px; /* 고정된 탭 바(약 48px) 아래에 멈추도록 */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
