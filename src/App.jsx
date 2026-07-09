@@ -1152,7 +1152,9 @@ export default function App() {
   const dupKeyFor = (r) => {
     const roomKey = normalizeRoom(r.room);
     if (!roomKey || roomKey.includes("체크인")) return null;
-    return `${r.site || ""}|${roomKey}`;
+    // 예약 경로가 빈 건(구글폼 유입)은 휘닉스로 간주 — 구글폼은 휘닉스 전용 채널이라
+    // 구글폼 + 웹앱 이중 예약도 같은 객실이면 중복으로 잡는다
+    return `${r.site || "휘닉스"}|${roomKey}`;
   };
   const roomStats = {};
   activeReservations.forEach((r) => {
