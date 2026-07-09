@@ -769,13 +769,14 @@ function EditableLockerNumber({ item, onCommit }) {
 /* ================================================================
    부별 실시간 예약 현황판 (오른쪽 고정, 스크롤 따라옴)
    ================================================================ */
-function SlotStatusPanel({ totals, capacity = 120 }) {
+function SlotStatusPanel({ totals, dupExtras, capacity = 120 }) {
   const nowSlot = getCurrentSlot(); // 지금 접수 기준 부 (현장 등록 자동 선택과 동일)
   return (
     <aside className="slot-aside">
       <div className="slot-aside-title">🏊 부별 예약 인원</div>
       {Object.entries(TIME_SLOTS).map(([k, time]) => {
         const n = totals[k] || 0;
+        const extra = (dupExtras && dupExtras[k]) || 0;
         const pct = Math.min(100, Math.round((n / capacity) * 100));
         const full = n >= capacity;
         const isNow = k === nowSlot;
@@ -795,6 +796,11 @@ function SlotStatusPanel({ totals, capacity = 120 }) {
               </span>
             </div>
             <div className="slot-aside-time">{time}</div>
+            {extra > 0 && (
+              <div className="slot-aside-real">
+                실질 <b>{n - extra}</b>명 <span>(중복 −{extra})</span>
+              </div>
+            )}
             <div className="slot-aside-bar">
               <div className="slot-aside-fill" style={{ width: `${pct}%` }} />
             </div>
@@ -1164,6 +1170,15 @@ export default function App() {
     return r.rowIndex === stat.firstRow ? "first" : "extra";
   };
 
+  /* ── 부별 중복 예약 인원 (직원 현황판 전용: 실질 인원 = 전체 − 중복)
+        중복 = 같은 객실의 첫 예약 이후 건. 전화 확인 후 직원이 정리할 잠정치 ── */
+  const slotDupExtras = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
+  activeReservations.forEach((r) => {
+    if (dupBadgeFor(r) !== "extra") return;
+    const s = matchSlot(r.timeSlot);
+    if (s in slotDupExtras) slotDupExtras[s] += Number(r.headcount) || 0;
+  });
+
   /* ── 레이트 체크아웃 희망 명단 (G열 "적용" 응답, 반납 객실도 포함) ──
      플캠(연계 숙박업소)은 프로모션 대상이 아니므로 정산 명단에서 제외 */
   const lateCheckoutList = formReservations.filter(
@@ -1350,7 +1365,7 @@ export default function App() {
             ))}
           </div>
           </div>
-          <SlotStatusPanel totals={slotTotals} />
+          <SlotStatusPanel totals={slotTotals} dupExtras={slotDupExtras} />
         </div>
       )}
 
@@ -1587,7 +1602,7 @@ export default function App() {
               dayReservations={reservations}
             />
           </div>
-          <SlotStatusPanel totals={slotTotals} />
+          <SlotStatusPanel totals={slotTotals} dupExtras={slotDupExtras} />
         </div>
       )}
     </div>
