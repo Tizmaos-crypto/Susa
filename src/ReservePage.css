@@ -9,10 +9,33 @@
   box-sizing: border-box;
 }
 
+/* ── 언어 토글 (우상단 고정) ── */
+.rsv-lang-btn {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 50;
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  color: #1f2937;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.rsv-lang-btn:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
 .rsv-header {
   max-width: 520px;
   margin: 0 auto 18px;
   text-align: center;
+  padding-top: 8px;
 }
 .rsv-logo {
   font-size: 40px;
