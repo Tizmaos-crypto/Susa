@@ -166,6 +166,7 @@ function nameQueryCandidates(query) {
 
 /* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
 const SLOT_END_MIN = { "1부": 13 * 60, "2부": 15 * 60 + 30, "3부": 18 * 60, "4부": 21 * 60 };
+const SLOT_START_MIN = { "1부": 10 * 60, "2부": 13 * 60 + 30, "3부": 16 * 60, "4부": 18 * 60 + 30 };
 function getCurrentSlot() {
   const d = new Date();
   const mins = d.getHours() * 60 + d.getMinutes();
@@ -173,6 +174,25 @@ function getCurrentSlot() {
     if (mins <= SLOT_END_MIN[key]) return key;
   }
   return Object.keys(TIME_SLOTS).slice(-1)[0]; // 영업 종료 후엔 마지막 부
+}
+
+/* 레이트 체크아웃 명단 이상 표시:
+   ① 3·4부인데 레이트 체크아웃 요구 (레이트 체크아웃은 1·2부 전용 혜택)
+   ② 이용 부가 이미 시작한 뒤에 접수 (접수 시각 > 이용일 해당 부 시작 시각)
+      = 당일 남은 자리를 뒤늦게 선점한 케이스 */
+function lateCheckoutFlags(r) {
+  const flags = [];
+  const slot = matchSlot(r.timeSlot);
+  if (slot === "3부" || slot === "4부") flags.push("3·4부 레이트체크아웃");
+  const startMin = SLOT_START_MIN[slot];
+  const d = parseDate(r.date);
+  if (startMin != null && /^\d{4}-\d{2}-\d{2}$/.test(d) && r.timestamp) {
+    const [y, mo, da] = d.split("-").map(Number);
+    const start = new Date(y, mo - 1, da, Math.floor(startMin / 60), startMin % 60, 0);
+    const booked = new Date(r.timestamp);
+    if (!isNaN(booked) && booked.getTime() > start.getTime()) flags.push("지난 부 예약");
+  }
+  return flags;
 }
 
 /* ── 락커 직렬화 (F열에 "남12, 여15" 형식으로 저장) ── */
@@ -1268,6 +1288,9 @@ export default function App() {
   const lateCheckoutList = formReservations.filter(
     (r) => r.site !== "플캠" && String(r.lateCheckout || "").includes("적용")
   );
+  const lateCheckoutFlaggedCount = lateCheckoutList.filter(
+    (r) => lateCheckoutFlags(r).length > 0
+  ).length;
 
   const downloadLateCheckoutCSV = () => {
     if (lateCheckoutList.length === 0) {
@@ -1283,12 +1306,15 @@ export default function App() {
       "입장 인원", // F
       "이용 락커", // G: 락커 배정 = 실제 방문 확인
       "반납여부", // H: 반납 = 실제 이용 확인
+      "확인 필요", // I: 이상(지난 부 예약 / 3·4부 레이트체크아웃) 자동 표시
     ];
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = lateCheckoutList
       .slice()
       .sort(
         (a, b) =>
+          // 확인 필요(이상) 건을 맨 위로
+          lateCheckoutFlags(b).length - lateCheckoutFlags(a).length ||
           parseDate(a.date).localeCompare(parseDate(b.date)) ||
           slotOrder(a.timeSlot) - slotOrder(b.timeSlot) ||
           String(a.room).localeCompare(String(b.room))
@@ -1303,6 +1329,7 @@ export default function App() {
           r.headcount || "",
           r.locker || "",
           r.returnedAt ? "반납" : r.locker ? "미반납" : "",
+          lateCheckoutFlags(r).map((f) => `⚠️ ${f}`).join(" · "),
         ]
           .map(esc)
           .join(",")
@@ -1393,6 +1420,9 @@ export default function App() {
               ⬇ 레이트 체크아웃 명단
               {lateCheckoutList.length > 0 ? ` (${lateCheckoutList.length})` : ""}
             </button>
+            {lateCheckoutFlaggedCount > 0 && (
+              <span className="lc-flag-badge">⚠️ 확인 필요 {lateCheckoutFlaggedCount}</span>
+            )}
           </div>
           <div className="search-bar">
             <div className="search-field search-date">
