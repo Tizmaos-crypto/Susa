@@ -351,6 +351,8 @@ export default function ReservePage() {
           setStep(1);
           setSlotKey("");
           fetchAvail();
+        } else if (json.duplicate) {
+          setStep(1); // 객실·날짜를 고칠 수 있게 1단계로
         }
       } else {
         setDone(true);

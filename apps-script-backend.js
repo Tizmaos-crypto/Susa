@@ -234,8 +234,32 @@ function doPost(e) {
       const locker      = String(body.locker      || "").trim();
       const memo        = String(body.memo        || "").trim();
 
-      // 온라인 고객 예약은 정원 초과 시 거부 (현장 직원 등록은 초과 허용)
+      // 온라인 고객 예약 검증 (현장 직원 등록은 예외 — 초과·중복 허용)
       if (source !== "현장") {
+        // ① 같은 이용일·시설·객실 중복 예약 차단 (실제 객실 번호에 한함)
+        const roomNorm = room.toUpperCase().replace(/\s+/g, "");
+        const isRealRoom = roomNorm && roomNorm.indexOf("체크인") < 0;
+        if (isRealRoom) {
+          const dateNorm = formatDate(date);
+          const siteNorm = site || "휘닉스"; // 구글폼 유입(빈값)은 휘닉스로 간주
+          const lastRow = sheet.getLastRow();
+          if (lastRow >= 2) {
+            const data = sheet.getRange(2, 1, lastRow - 1, NUM_COLS).getValues();
+            const dup = data.some((rw) => {
+              if (formatDate(rw[3]) !== dateNorm) return false;
+              if ((String(rw[12] || "").trim() || "휘닉스") !== siteNorm) return false;
+              return String(rw[2] || "").toUpperCase().replace(/\s+/g, "") === roomNorm;
+            });
+            if (dup) {
+              return createJsonResponse({
+                error: "해당 객실은 이미 그 날짜에 예약이 있습니다. 수영장 프론트에 문의해주세요.",
+                duplicate: true,
+              });
+            }
+          }
+        }
+
+        // ② 정원 초과 차단
         const slotKey = matchSlot(timeSlot);
         if (slotKey) {
           const s = computeAvailability(date).slots[slotKey];
