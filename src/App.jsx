@@ -1275,31 +1275,34 @@ export default function App() {
       return;
     }
     const headers = [
-      "객실 호수",
-      "예약자명",
-      "예약 날짜",
-      "예약시간",
-      "입장 인원",
-      "락커",
-      "반납여부",
+      "접수 시각", // A: 링크로 예약한 시각 (당일 오후 1부 선점 등 확인)
+      "객실 호수", // B
+      "예약자명", // C
+      "이용 날짜", // D: 수영장 이용 예약 날짜
+      "예약 시간", // E: 1~4부
+      "입장 인원", // F
+      "이용 락커", // G: 락커 배정 = 실제 방문 확인
+      "반납여부", // H: 반납 = 실제 이용 확인
     ];
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = lateCheckoutList
       .slice()
       .sort(
         (a, b) =>
-          String(a.room).localeCompare(String(b.room)) ||
-          slotOrder(a.timeSlot) - slotOrder(b.timeSlot)
+          parseDate(a.date).localeCompare(parseDate(b.date)) ||
+          slotOrder(a.timeSlot) - slotOrder(b.timeSlot) ||
+          String(a.room).localeCompare(String(b.room))
       )
       .map((r) =>
         [
+          formatTimestamp(r.timestamp),
           r.room,
           r.name,
           parseDate(r.date),
           matchSlot(r.timeSlot),
           r.headcount || "",
           r.locker || "",
-          r.returnedAt ? "반납" : "",
+          r.returnedAt ? "반납" : r.locker ? "미반납" : "",
         ]
           .map(esc)
           .join(",")
