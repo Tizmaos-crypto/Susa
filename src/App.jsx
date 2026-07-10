@@ -195,6 +195,9 @@ function lateCheckoutFlags(r) {
   return flags;
 }
 
+/* 레이트 체크아웃 저장값 (예약자 검색 편집 시 사용) */
+const LATE_YES = "네, 적용해 주세요.";
+
 /* ── 락커 직렬화 (F열에 "남12, 여15" 형식으로 저장) ── */
 function parseLockers(raw) {
   if (!raw) return [];
@@ -857,6 +860,12 @@ export default function App() {
   const [allRes, setAllRes] = useState([]);
   const [allLoading, setAllLoading] = useState(false);
   const [allError, setAllError] = useState("");
+  /* 예약자 검색 편집 상태 */
+  const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
+  const [editDate, setEditDate] = useState("");
+  const [editSlot, setEditSlot] = useState("");
+  const [editLate, setEditLate] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [tab, setTab] = useState("register");
   const [keyQuery, setKeyQuery] = useState(""); // 락커 현황 키 검색
@@ -1015,6 +1024,42 @@ export default function App() {
       );
       alert("반납 처리 실패 — 네트워크를 확인해주세요.");
     } finally {
+      mutationCount.current -= 1;
+      lastMutationAt.current = Date.now();
+    }
+  };
+
+  /* ── 예약 편집 (날짜·부·레이트체크아웃) — 예약자 검색 탭 ── */
+  const startEdit = (r) => {
+    setEditId(r.rowIndex);
+    setEditDate(parseDate(r.date));
+    setEditSlot(matchSlot(r.timeSlot) || "1부");
+    setEditLate(String(r.lateCheckout || "").includes("적용"));
+  };
+  const cancelEdit = () => setEditId(null);
+
+  const saveEdit = async (r) => {
+    const fields = {
+      date: editDate,
+      timeSlot: `${editSlot} (${TIME_SLOTS[editSlot]})`,
+      lateCheckout: editLate ? LATE_YES : "",
+    };
+    setEditSaving(true);
+    mutationCount.current += 1;
+    try {
+      await fetch(apiUrl, {
+        method: "POST",
+        body: JSON.stringify({ action: "editReservation", rowIndex: r.rowIndex, ...fields }),
+      });
+      const patch = (list) =>
+        list.map((x) => (x.rowIndex === r.rowIndex ? { ...x, ...fields } : x));
+      setAllRes(patch);
+      setReservations(patch); // 당일 목록·현황판도 동기화
+      setEditId(null);
+    } catch {
+      alert("수정 실패 — 네트워크를 확인해주세요.");
+    } finally {
+      setEditSaving(false);
       mutationCount.current -= 1;
       lastMutationAt.current = Date.now();
     }
@@ -1804,27 +1849,90 @@ export default function App() {
                 const dup = guestDupBadge(r);
                 const slot = matchSlot(r.timeSlot);
                 const wantsLate = String(r.lateCheckout || "").includes("적용");
+                const editing = editId === r.rowIndex;
                 return (
-                  <div key={r.rowIndex} className="guest-row">
-                    <span className="gcell-date">이용 {parseDate(r.date)}</span>
-                    <span className="gcell-slot">{slot || "—"}</span>
-                    <span className="gcell-name">{r.name || "(무명)"}</span>
-                    <span className="gcell-room">{r.room}</span>
-                    <span
-                      className={`site-chip ${r.site === "플캠" ? "" : "site-chip-resort"}`}
-                    >
-                      {r.site || "휘닉스"}
-                    </span>
-                    {wantsLate && <span className="chip-late">레이트 체크아웃</span>}
-                    {dup === "first" && (
-                      <span className="dup-badge dup-first">🥇 첫 예약</span>
+                  <div key={r.rowIndex} className="guest-item">
+                    <div className="guest-row">
+                      <span className="gcell-date">이용 {parseDate(r.date)}</span>
+                      <span className="gcell-slot">{slot || "—"}</span>
+                      <span className="gcell-name">{r.name || "(무명)"}</span>
+                      <span className="gcell-room">{r.room}</span>
+                      <span
+                        className={`site-chip ${r.site === "플캠" ? "" : "site-chip-resort"}`}
+                      >
+                        {r.site || "휘닉스"}
+                      </span>
+                      {wantsLate && <span className="chip-late">레이트 체크아웃</span>}
+                      {dup === "first" && (
+                        <span className="dup-badge dup-first">🥇 첫 예약</span>
+                      )}
+                      {dup === "extra" && (
+                        <span className="dup-badge dup-extra">중복 예약</span>
+                      )}
+                      {r.source === "현장" && <span className="chip-etc">현장</span>}
+                      {r.returnedAt && <span className="chip-etc">반납됨</span>}
+                      <span className="gcell-ts">접수 {formatTimestamp(r.timestamp)}</span>
+                      <button
+                        className="guest-edit-btn"
+                        onClick={() => (editing ? cancelEdit() : startEdit(r))}
+                      >
+                        {editing ? "✕ 취소" : "✏️ 편집"}
+                      </button>
+                    </div>
+
+                    {editing && (
+                      <div className="guest-edit">
+                        <div className="guest-edit-fields">
+                          <label className="guest-edit-field">
+                            <span>이용 날짜</span>
+                            <input
+                              type="date"
+                              className="input"
+                              value={editDate}
+                              onChange={(e) => setEditDate(e.target.value)}
+                            />
+                          </label>
+                          <label className="guest-edit-field">
+                            <span>시간(부)</span>
+                            <select
+                              className="input"
+                              value={editSlot}
+                              onChange={(e) => setEditSlot(e.target.value)}
+                            >
+                              {Object.entries(TIME_SLOTS).map(([k, time]) => (
+                                <option key={k} value={k}>
+                                  {k} ({time})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="guest-edit-check">
+                            <input
+                              type="checkbox"
+                              checked={editLate}
+                              onChange={(e) => setEditLate(e.target.checked)}
+                            />
+                            레이트 체크아웃 적용
+                          </label>
+                        </div>
+                        <div className="guest-edit-actions">
+                          <button
+                            className="btn btn-default"
+                            onClick={cancelEdit}
+                            disabled={editSaving}
+                          >
+                            취소
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => saveEdit(r)}
+                            disabled={editSaving}
+                          >
+                            {editSaving ? "저장중…" : "💾 저장"}
+                          </button>
+                        </div>
+                      </div>
                     )}
-                    {dup === "extra" && (
-                      <span className="dup-badge dup-extra">중복 예약</span>
-                    )}
-                    {r.source === "현장" && <span className="chip-etc">현장</span>}
-                    {r.returnedAt && <span className="chip-etc">반납됨</span>}
-                    <span className="gcell-ts">접수 {formatTimestamp(r.timestamp)}</span>
                   </div>
                 );
               })}

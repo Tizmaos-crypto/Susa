@@ -208,6 +208,17 @@ function doPost(e) {
       return createJsonResponse({ success: true, marked: indices.length });
     }
 
+    // ---------- 예약 편집 (날짜 D / 시간부 E / 레이트체크아웃 G) ----------
+    if (body.action === "editReservation") {
+      const row = Number(body.rowIndex);
+      if (!(row >= 2)) return createJsonResponse({ error: "잘못된 행입니다." });
+      if (body.date !== undefined) sheet.getRange(row, 4).setValue(String(body.date));       // D열
+      if (body.timeSlot !== undefined) sheet.getRange(row, 5).setValue(String(body.timeSlot)); // E열
+      if (body.lateCheckout !== undefined)
+        sheet.getRange(row, 7).setValue(String(body.lateCheckout));                          // G열
+      return createJsonResponse({ success: true, rowIndex: row });
+    }
+
     // ---------- 예약 등록 (온라인 고객 예약 + 현장 직원 등록 공용) ----------
     if (body.action === "addReservation") {
       const room = String(body.room || "").trim();

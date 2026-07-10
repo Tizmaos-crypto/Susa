@@ -1044,8 +1044,66 @@ select.input option {
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
-.guest-row:last-child {
+.guest-item:last-child .guest-row {
   border-bottom: none;
+}
+.guest-edit {
+  padding: 14px 18px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.guest-edit-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+}
+.guest-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.guest-edit-field .input {
+  min-width: 150px;
+}
+.guest-edit-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  padding-bottom: 10px;
+  cursor: pointer;
+}
+.guest-edit-check input {
+  width: 18px;
+  height: 18px;
+}
+.guest-edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.guest-edit-btn {
+  margin-left: 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.guest-edit-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-light);
 }
 .gcell-date {
   font-weight: 800;
