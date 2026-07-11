@@ -152,6 +152,37 @@
   color: var(--text);
   margin-bottom: 12px;
   padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.slot-aside-cal {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.slot-aside-cal:hover {
+  border-color: var(--accent);
+}
+.slot-aside-date {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 0 4px;
+  margin: -6px 0 10px;
+}
+.slot-aside-date.other {
+  color: var(--accent-light);
+}
+.slot-aside-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
 }
 .slot-aside-row {
   margin-bottom: 10px;

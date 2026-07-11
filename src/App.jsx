@@ -800,17 +800,45 @@ function EditableLockerNumber({ item, onCommit }) {
 /* ================================================================
    부별 실시간 예약 현황판 (오른쪽 고정, 스크롤 따라옴)
    ================================================================ */
-function SlotStatusPanel({ totals, dupExtras, capacity = 120 }) {
+function SlotStatusPanel({ totals, dupExtras, capacity = 120, date, onDateChange }) {
   const nowSlot = getCurrentSlot(); // 지금 접수 기준 부 (현장 등록 자동 선택과 동일)
+  const [showPicker, setShowPicker] = useState(false);
+  const isToday = !date || date === getToday();
   return (
     <aside className="slot-aside">
-      <div className="slot-aside-title">🏊 부별 예약 인원</div>
+      <div className="slot-aside-title">
+        <span>🏊 부별 예약 인원</span>
+        {onDateChange && (
+          <button
+            className="slot-aside-cal"
+            onClick={() => setShowPicker((v) => !v)}
+            title="날짜 선택"
+          >
+            📅
+          </button>
+        )}
+      </div>
+      {onDateChange && (
+        <>
+          <div className={`slot-aside-date ${isToday ? "" : "other"}`}>
+            {isToday ? `오늘 · ${date}` : date}
+          </div>
+          {showPicker && (
+            <input
+              type="date"
+              className="input slot-aside-input"
+              value={date}
+              onChange={(e) => onDateChange(e.target.value)}
+            />
+          )}
+        </>
+      )}
       {Object.entries(TIME_SLOTS).map(([k, time]) => {
         const n = totals[k] || 0;
         const extra = (dupExtras && dupExtras[k]) || 0;
         const pct = Math.min(100, Math.round((n / capacity) * 100));
         const full = n >= capacity;
-        const isNow = k === nowSlot;
+        const isNow = isToday && k === nowSlot; // "현재"는 오늘일 때만
         return (
           <div
             key={k}
@@ -860,6 +888,7 @@ export default function App() {
   const [allRes, setAllRes] = useState([]);
   const [allLoading, setAllLoading] = useState(false);
   const [allError, setAllError] = useState("");
+  const [panelDate, setPanelDate] = useState(getToday()); // 예약자 검색 현황판 조회 날짜
   /* 예약자 검색 편집 상태 */
   const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
   const [editDate, setEditDate] = useState("");
@@ -1328,6 +1357,17 @@ export default function App() {
     return r.rowIndex === stat.firstRow ? "first" : "extra";
   };
 
+  /* ── 예약자 검색 현황판: 선택 날짜(panelDate)의 부별 인원 (전 날짜 데이터에서 집계) ── */
+  const panelTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
+  const panelDupExtras = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
+  allRes.forEach((r) => {
+    if (parseDate(r.date) !== panelDate) return;
+    const s = matchSlot(r.timeSlot);
+    if (!(s in panelTotals)) return;
+    panelTotals[s] += Number(r.headcount) || 0;
+    if (guestDupBadge(r) === "extra") panelDupExtras[s] += Number(r.headcount) || 0;
+  });
+
   /* ── 레이트 체크아웃 희망 명단 (G열 "적용" 응답, 반납 객실도 포함) ──
      플캠(연계 숙박업소)은 프로모션 대상이 아니므로 정산 명단에서 제외 */
   const lateCheckoutList = formReservations.filter(
@@ -1793,7 +1833,8 @@ export default function App() {
           예약자 검색 탭 (전 날짜 · 전화 문의 대응)
           ════════════════════════════════════════ */}
       {tab === "guest" && (
-        <div className="content">
+        <div className="content content-flex">
+          <div className="main-col">
           <div className="search-bar">
             <div className="search-field">
               <label className="label">예약자 성함</label>
@@ -1938,6 +1979,13 @@ export default function App() {
               })}
             </div>
           )}
+          </div>
+          <SlotStatusPanel
+            totals={panelTotals}
+            dupExtras={panelDupExtras}
+            date={panelDate}
+            onDateChange={setPanelDate}
+          />
         </div>
       )}
     </div>
