@@ -155,6 +155,31 @@
   margin: 6px 0;
 }
 
+/* 퇴실 당일 예외 혜택 박스 */
+.rsv-except-box {
+  background: #ecfdf5;
+  border: 1.5px solid #6ee7b7;
+  border-radius: 12px;
+  padding: 13px 15px;
+  margin: 14px 0;
+}
+.rsv-except-title {
+  font-size: 14px !important;
+  font-weight: 800;
+  color: #047857 !important;
+  margin: 0 0 8px !important;
+}
+.rsv-except-box p {
+  color: #065f46 !important;
+  margin: 6px 0 !important;
+}
+.rsv-except-fine {
+  font-size: 12.5px !important;
+  color: #059669 !important;
+  opacity: 0.9;
+  margin: 8px 0 0 !important;
+}
+
 /* 현장 입장 안내 박스 */
 .rsv-walkin-box {
   background: #f5f3ff;
