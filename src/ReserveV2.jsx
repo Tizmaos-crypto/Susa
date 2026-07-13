@@ -53,8 +53,15 @@ const STR = {
       ],
       noshowLabel: "[노쇼 규정]",
       noshow:
-        "예약된 회차 시작 후 30분 경과 시 예약은 자동 취소되며, 락커 키는 현장 대기자에게 양도됩니다.",
-      walkin: `사전 예약 마감(${CAPACITY}명 초과) 또는 노쇼 자동 취소 이후 현장 방문 시 입장은 가능하나, 락커 키 배정이 불가합니다. 이 경우 객실에서 수영복으로 환복 후 락커 키 없이 바로 입장하셔야 하므로 가급적 사전 예약을 권장합니다. (관련 법률에 따른 수영장 총 적정 수용 인원 기준 내에서 안전하게 운영됩니다.)`,
+        "예약된 회차 시작 후 30분 경과 시 예약은 자동 취소되며, 해당 락커 키는 현장 대기자에게 양도됩니다.",
+      walkinLabel: "🚶 [현장 입장 안내 — 예약 없이 방문]",
+      walkin: [
+        "사전 예약이 없어도 현장에서 바로 입장하실 수 있습니다. 다만 락커 키 배정이 불가하므로, 반드시 객실에서 수영복으로 환복하신 후 방문해 주시기 바랍니다.",
+        "노쇼 자동 취소 이전에 현장 입장하시는 경우에는 락커 키를 배정해 드릴 수 없습니다. 락커 키는 예약 고객에게 우선 배정되며, 노쇼 처리 후 남는 키에 한해 현장 대기자에게 양도됩니다.",
+        "현장 입장 역시 수영장 총 적정 수용 인원을 초과할 경우 대기가 발생할 수 있습니다.",
+      ],
+      walkinFine:
+        "락커 키보다 이용 시간을 우선하시는 고객님은 환복 후 바로 입장하시는 편이 편리할 수 있습니다. 다만 대기 없이 안정적으로 이용하시려면 사전 예약을 권장합니다. (관련 법률에 따른 수영장 총 적정 수용 인원 기준 내에서 안전하게 운영됩니다.)",
       noticeTitle: "📌 이용 안내 및 유의사항",
       roomCapacity:
         "객실별 이용 인원: 로얄 객실 최대 4인, 스위트 객실 최대 6인까지 무료 이용이 가능합니다. (무료 인원 초과 시 객실당 최대 2인까지 투숙객 50% 할인 금액으로 현장 결제 후 추가 입장 가능 / 최대 입장 인원: 로얄 총 6인, 스위트 총 8인)",
@@ -147,8 +154,15 @@ const STR = {
       ],
       noshowLabel: "[No-show Policy]",
       noshow:
-        "If 30 minutes pass after the reserved session begins, the reservation is automatically canceled and the locker key is passed to on-site waiting guests.",
-      walkin: `After advance reservations are full (over ${CAPACITY}) or a no-show is auto-canceled, walk-in entry is possible but a locker key cannot be assigned. In that case, please change into swimwear in your room and enter directly without a locker key. Advance reservation is recommended. (Operated safely within the pool's legal maximum capacity.)`,
+        "If 30 minutes pass after the reserved session begins, the reservation is automatically canceled and that locker key is passed to on-site waiting guests.",
+      walkinLabel: "🚶 [Walk-in Entry — visiting without a reservation]",
+      walkin: [
+        "You may enter directly even without an advance reservation. However, a locker key cannot be assigned, so please change into your swimwear in your room before visiting.",
+        "If you walk in before the no-show cancellation time, a locker key cannot be provided. Locker keys are assigned to guests with reservations first; only keys remaining after no-show processing are passed to on-site waiting guests.",
+        "Walk-in entry may also involve waiting if the pool exceeds its total appropriate capacity.",
+      ],
+      walkinFine:
+        "If you value pool time over a locker key, changing in your room and entering directly may be more convenient. For a reliable visit without waiting, however, advance reservation is recommended. (Operated safely within the pool's legal maximum capacity.)",
       noticeTitle: "📌 Usage Guide & Notes",
       roomCapacity:
         "Room capacity: Royal rooms up to 4 guests, Suite rooms up to 6 guests may use the pool free of charge. (Beyond the free capacity, up to 2 more guests per room may enter after paying 50% of the guest rate on site / Maximum entry: Royal 6 total, Suite 8 total)",
@@ -604,7 +618,16 @@ export default function ReserveV2() {
 
             <p className="rsv-notice-sub">{tIntro.noshowLabel}</p>
             <p>{tIntro.noshow}</p>
-            <p className="rsv-notice-fine">{tIntro.walkin}</p>
+
+            <div className="rsv-walkin-box">
+              <p className="rsv-walkin-title">{tIntro.walkinLabel}</p>
+              <ul>
+                {tIntro.walkin.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+            <p className="rsv-notice-fine">{tIntro.walkinFine}</p>
           </section>
 
           <section className="rsv-notice">

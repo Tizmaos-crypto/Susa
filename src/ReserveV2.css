@@ -155,6 +155,29 @@
   margin: 6px 0;
 }
 
+/* 현장 입장 안내 박스 */
+.rsv-walkin-box {
+  background: #f5f3ff;
+  border: 1.5px solid #c4b5fd;
+  border-radius: 12px;
+  padding: 13px 15px;
+  margin: 14px 0;
+}
+.rsv-walkin-title {
+  font-size: 14px !important;
+  font-weight: 800;
+  color: #6d28d9 !important;
+  margin: 0 0 8px !important;
+}
+.rsv-walkin-box ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.rsv-walkin-box li {
+  color: #5b21b6 !important;
+  margin: 6px 0;
+}
+
 /* 입장 인원 아래 락커 키 경고 (잘 보이게) */
 .rsv-locker-warn {
   font-size: 13.5px;
