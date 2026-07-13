@@ -138,6 +138,46 @@ function doGet(e) {
       return createJsonResponse(computeAvailability((e.parameter.date || "").trim()));
     }
 
+    // 중복 예약 실시간 확인 (신규 예약 페이지용) — 개인정보 없이 여부만 반환
+    if ((e.parameter.action || "") === "checkDuplicate") {
+      const dDate = formatDate((e.parameter.date || "").trim());
+      const dRoom = (e.parameter.room || "").trim().toUpperCase().replace(/\s+/g, "");
+      const dSite = (e.parameter.site || "").trim() || "휘닉스";
+      if (!dDate || !dRoom) return createJsonResponse({ duplicate: false });
+      const sh = getSheet();
+      const lr = sh.getLastRow();
+      if (lr < 2) return createJsonResponse({ duplicate: false });
+      const rows = sh.getRange(2, 1, lr - 1, NUM_COLS).getValues();
+      const dup = rows.some(function (rw) {
+        if (formatDate(rw[3]) !== dDate) return false;
+        if ((String(rw[12] || "").trim() || "휘닉스") !== dSite) return false;
+        return String(rw[2] || "").toUpperCase().replace(/\s+/g, "") === dRoom;
+      });
+      return createJsonResponse({ duplicate: dup });
+    }
+
+    // 내 예약 확인 (성함 + 객실 정확히 일치할 때만, 본인 예약 최소 정보만 반환)
+    if ((e.parameter.action || "") === "lookup") {
+      const lName = (e.parameter.name || "").trim();
+      const lRoom = (e.parameter.room || "").trim().toUpperCase().replace(/\s+/g, "");
+      if (!lName || !lRoom) return createJsonResponse({ reservations: [] });
+      const sh = getSheet();
+      const lr = sh.getLastRow();
+      if (lr < 2) return createJsonResponse({ reservations: [] });
+      const rows = sh.getRange(2, 1, lr - 1, NUM_COLS).getValues();
+      const out = [];
+      rows.forEach(function (rw) {
+        if (String(rw[1] || "").trim() !== lName) return;
+        if (String(rw[2] || "").toUpperCase().replace(/\s+/g, "") !== lRoom) return;
+        out.push({
+          date: formatDate(rw[3]),
+          timeSlot: String(rw[4] || "").trim(),
+          headcount: parseHeadcount(rw[5]),
+        });
+      });
+      return createJsonResponse({ reservations: out });
+    }
+
     const sheet = getSheet();
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return createJsonResponse({ reservations: [] });

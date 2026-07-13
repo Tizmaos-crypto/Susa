@@ -1,0 +1,142 @@
+/* ============================================================
+   신규 예약 페이지(?view=v2) 전용 스타일 — ReservePage.css 위에 얹음
+   ============================================================ */
+
+/* 좌상단 예약 확인 버튼 */
+.rsv-lookup-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 50;
+  background: #2563eb;
+  border: 1.5px solid #2563eb;
+  color: #fff;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+.rsv-lookup-btn:hover {
+  background: #1d4ed8;
+}
+
+/* 예약 확인 모달 */
+.rsv-modal-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(17, 24, 39, 0.5);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+.rsv-modal {
+  background: #fff;
+  border-radius: 18px;
+  padding: 22px 20px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.rsv-lookup-results {
+  margin-top: 16px;
+  border-top: 1px solid #eef0f2;
+  padding-top: 14px;
+}
+.rsv-lookup-count {
+  font-size: 13px;
+  font-weight: 800;
+  color: #2563eb;
+  margin: 0 0 10px;
+}
+.rsv-lookup-none {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+  text-align: center;
+  padding: 10px 0;
+}
+.rsv-lookup-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 8px;
+  font-size: 14.5px;
+}
+.rsv-lookup-date {
+  font-weight: 800;
+  color: #111827;
+}
+.rsv-lookup-slot {
+  font-weight: 700;
+  color: #2563eb;
+}
+.rsv-lookup-head {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 락커 키 안내 박스 (이용 안내) */
+.rsv-locker-box {
+  background: #eff6ff;
+  border: 1.5px solid #93c5fd;
+  border-radius: 12px;
+  padding: 13px 15px;
+  margin: 14px 0;
+}
+.rsv-locker-title {
+  font-size: 14px !important;
+  font-weight: 800;
+  color: #1d4ed8 !important;
+  margin: 0 0 8px !important;
+}
+.rsv-locker-box ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.rsv-locker-box li {
+  color: #1e40af !important;
+  margin: 6px 0;
+}
+
+/* 입장 인원 아래 락커 키 경고 (잘 보이게) */
+.rsv-locker-warn {
+  font-size: 13.5px;
+  line-height: 1.6;
+  font-weight: 700;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1.5px solid #f59e0b;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0 0;
+}
+
+/* 중복 예약 확인 */
+.rsv-dup-checking {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 8px 0 0;
+}
+.rsv-dup-blocked {
+  font-size: 13.5px;
+  line-height: 1.6;
+  font-weight: 700;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1.5px solid #fca5a5;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0 0;
+}
