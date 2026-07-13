@@ -33,7 +33,7 @@
 // ---------- 설정 ----------
 const SHEET_NAME = "설문지 응답 1";
 const NUM_COLS = 14;           // A~N
-const SLOT_CAPACITY = 120;     // 각 시간부(1부~4부) 최대 정원
+const SLOT_CAPACITY = 180;     // 각 시간부(1부~4부) 최대 정원 (2026-07 정책 변경: 120 → 180)
 const TIME_SLOTS = ["1부", "2부", "3부", "4부"];
 
 // ---------- 유틸 ----------

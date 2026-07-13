@@ -93,9 +93,9 @@ const STR = {
         "각 회차 사이 30분은 수질 점검 및 락커룸 딥클리닝 등 시설 정비 시간입니다. 쾌적한 환경을 위해 퇴장 시간을 엄수해 주시기 바랍니다.",
       lockerLabel: "[사전 예약 인원 및 락커 배정]",
       lockers: [
-        "각 부당 사전 예약은 선착순 120명으로 마감되며, 예약자에게만 사우나 락커가 정상 배정됩니다.",
+        "각 부당 사전 예약은 선착순 180명으로 마감되며, 예약자에게만 사우나 락커가 정상 배정됩니다.",
         "[노쇼 규정] 예약된 회차 시작 후 30분 경과 시 예약은 자동 취소되며, 락커는 현장 대기자에게 양도됩니다.",
-        "사전 예약 마감(120명 초과) 또는 노쇼 자동 취소 이후 현장 방문 시 입장은 가능하나, 락커 배정이 불가합니다. 이 경우 객실에서 수영복으로 환복 후 락커 키 없이 바로 입장하셔야 하므로 가급적 사전 예약을 권장합니다. (관련 법률에 따른 수영장 총 적정 수용 인원 기준 내에서 안전하게 운영됩니다.)",
+        "사전 예약 마감(180명 초과) 또는 노쇼 자동 취소 이후 현장 방문 시 입장은 가능하나, 락커 배정이 불가합니다. 이 경우 객실에서 수영복으로 환복 후 락커 키 없이 바로 입장하셔야 하므로 가급적 사전 예약을 권장합니다. (관련 법률에 따른 수영장 총 적정 수용 인원 기준 내에서 안전하게 운영됩니다.)",
       ],
       noticeTitle: "📌 이용 안내 및 유의사항",
       roomCapacity:
@@ -179,9 +179,9 @@ const STR = {
         "The 30 minutes between sessions is for water-quality checks and locker-room deep cleaning. Please observe the exit times for everyone's comfort.",
       lockerLabel: "[Advance Reservation Capacity & Locker Assignment]",
       lockers: [
-        "Advance reservations for each session close at the first 120 guests, and sauna lockers are assigned only to guests with a reservation.",
+        "Advance reservations for each session close at the first 180 guests, and sauna lockers are assigned only to guests with a reservation.",
         "[No-show Policy] If 30 minutes pass after the reserved session begins, the reservation is automatically canceled and the locker is passed to on-site waiting guests.",
-        "After advance reservations are full (over 120) or a no-show is auto-canceled, walk-in entry is possible but a locker cannot be assigned. In that case, please change into swimwear in your room and enter directly without a locker key. Advance reservation is recommended. (Operated safely within the pool's legal maximum capacity.)",
+        "After advance reservations are full (over 180) or a no-show is auto-canceled, walk-in entry is possible but a locker cannot be assigned. In that case, please change into swimwear in your room and enter directly without a locker key. Advance reservation is recommended. (Operated safely within the pool's legal maximum capacity.)",
       ],
       noticeTitle: "📌 Usage Guide & Notes",
       roomCapacity:

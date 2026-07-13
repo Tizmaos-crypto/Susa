@@ -800,7 +800,7 @@ function EditableLockerNumber({ item, onCommit }) {
 /* ================================================================
    부별 실시간 예약 현황판 (오른쪽 고정, 스크롤 따라옴)
    ================================================================ */
-function SlotStatusPanel({ totals, dupExtras, capacity = 120, date, onDateChange }) {
+function SlotStatusPanel({ totals, dupExtras, capacity = 180, date, onDateChange }) {
   const nowSlot = getCurrentSlot(); // 지금 접수 기준 부 (현장 등록 자동 선택과 동일)
   const [showPicker, setShowPicker] = useState(false);
   const isToday = !date || date === getToday();

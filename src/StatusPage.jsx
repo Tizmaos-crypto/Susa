@@ -112,7 +112,7 @@ export default function StatusPage() {
           const slot = slots[key];
           const st = statusOf(slot);
           const reserved = slot ? slot.reserved : 0;
-          const capacity = slot ? slot.capacity : data?.capacity || 120;
+          const capacity = slot ? slot.capacity : data?.capacity || 180;
           const remaining = slot ? slot.remaining : capacity;
           const pct = Math.min(100, Math.round((reserved / capacity) * 100));
           return (
@@ -162,7 +162,7 @@ export default function StatusPage() {
             {updatedAt.getMinutes().toString().padStart(2, "0")} · 30초마다 자동 갱신
           </span>
         )}
-        <span className="status-note">정원은 각 부 {data?.capacity || 120}명 기준입니다</span>
+        <span className="status-note">정원은 각 부 {data?.capacity || 180}명 기준입니다</span>
       </footer>
     </div>
   );
