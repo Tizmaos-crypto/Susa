@@ -27,11 +27,12 @@
 //   K열: 락커 배정 시각        ← 웹앱에서 기록 (3시간 경과 확인용)
 //   L열: 반납 시각            ← 웹앱에서 기록 (반납=취소선 표시용, 조건부 서식)
 //   M열: 예약 경로            ← 웹앱에서 기록 (휘닉스=리조트, 플캠=연계 숙박업소)
+//   N열: 취소 시각            ← 고객이 예약 확인에서 취소 시 기록 (정원·중복에서 제외)
 // ============================================================
 
 // ---------- 설정 ----------
 const SHEET_NAME = "설문지 응답 1";
-const NUM_COLS = 13;           // A~M
+const NUM_COLS = 14;           // A~N
 const SLOT_CAPACITY = 120;     // 각 시간부(1부~4부) 최대 정원
 const TIME_SLOTS = ["1부", "2부", "3부", "4부"];
 
@@ -90,7 +91,13 @@ function rowToObj(row, idx) {
     assignedAt: row[10] ? String(row[10]) : "",        // K열: 락커 배정 시각
     returnedAt: row[11] ? String(row[11]) : "",        // L열: 반납 시각
     site:      row[12] ? String(row[12]).trim() : "",  // M열: 예약 경로
+    canceledAt: row[13] ? String(row[13]) : "",        // N열: 취소 시각
   };
+}
+
+// 취소된 예약인지 (N열)
+function isCanceled(row) {
+  return !!row[13];
 }
 
 // ---------- JSON 응답 ----------
@@ -110,6 +117,7 @@ function computeAvailability(date) {
   if (lastRow >= 2) {
     const data = sheet.getRange(2, 1, lastRow - 1, NUM_COLS).getValues();
     data.forEach((row) => {
+      if (isCanceled(row)) return; // 취소된 예약은 정원에서 제외
       if (date && formatDate(row[3]) !== date) return;
       const slot = matchSlot(row[4]);
       if (!slot) return;
@@ -149,6 +157,7 @@ function doGet(e) {
       if (lr < 2) return createJsonResponse({ duplicate: false });
       const rows = sh.getRange(2, 1, lr - 1, NUM_COLS).getValues();
       const dup = rows.some(function (rw) {
+        if (isCanceled(rw)) return false; // 취소 건은 중복으로 보지 않음 (재예약 허용)
         if (formatDate(rw[3]) !== dDate) return false;
         if ((String(rw[12] || "").trim() || "휘닉스") !== dSite) return false;
         return String(rw[2] || "").toUpperCase().replace(/\s+/g, "") === dRoom;
@@ -166,10 +175,12 @@ function doGet(e) {
       if (lr < 2) return createJsonResponse({ reservations: [] });
       const rows = sh.getRange(2, 1, lr - 1, NUM_COLS).getValues();
       const out = [];
-      rows.forEach(function (rw) {
+      rows.forEach(function (rw, i) {
+        if (isCanceled(rw)) return; // 취소된 예약은 표시하지 않음
         if (String(rw[1] || "").trim() !== lName) return;
         if (String(rw[2] || "").toUpperCase().replace(/\s+/g, "") !== lRoom) return;
         out.push({
+          rowIndex: i + 2, // 취소 요청 시 사용 (취소는 성함·객실 재확인 후 처리)
           date: formatDate(rw[3]),
           timeSlot: String(rw[4] || "").trim(),
           headcount: parseHeadcount(rw[5]),
@@ -248,6 +259,29 @@ function doPost(e) {
       return createJsonResponse({ success: true, marked: indices.length });
     }
 
+    // ---------- 고객 예약 취소 (N열에 취소 시각 기록) ----------
+    //  본인 확인: 요청한 성함·객실이 해당 행과 일치할 때만 취소 (변경은 불가, 취소만)
+    if (body.action === "cancelReservation") {
+      const row = Number(body.rowIndex);
+      if (!(row >= 2)) return createJsonResponse({ error: "잘못된 요청입니다." });
+
+      const vals = sheet.getRange(row, 1, 1, NUM_COLS).getValues()[0];
+      const reqName = String(body.name || "").trim();
+      const reqRoom = String(body.room || "").trim().toUpperCase().replace(/\s+/g, "");
+      const rowName = String(vals[1] || "").trim();
+      const rowRoom = String(vals[2] || "").toUpperCase().replace(/\s+/g, "");
+
+      if (!reqName || !reqRoom || reqName !== rowName || reqRoom !== rowRoom) {
+        return createJsonResponse({ error: "예약 정보가 일치하지 않습니다." });
+      }
+      if (isCanceled(vals)) {
+        return createJsonResponse({ error: "이미 취소된 예약입니다." });
+      }
+
+      sheet.getRange(row, 14).setValue(new Date()); // N열: 취소 시각
+      return createJsonResponse({ success: true, rowIndex: row });
+    }
+
     // ---------- 예약 편집 (날짜 D / 시간부 E / 레이트체크아웃 G) ----------
     if (body.action === "editReservation") {
       const row = Number(body.rowIndex);
@@ -286,6 +320,7 @@ function doPost(e) {
           if (lastRow >= 2) {
             const data = sheet.getRange(2, 1, lastRow - 1, NUM_COLS).getValues();
             const dup = data.some((rw) => {
+              if (isCanceled(rw)) return false; // 취소 건은 중복 아님 (재예약 허용)
               if (formatDate(rw[3]) !== dateNorm) return false;
               if ((String(rw[12] || "").trim() || "휘닉스") !== siteNorm) return false;
               return String(rw[2] || "").toUpperCase().replace(/\s+/g, "") === roomNorm;

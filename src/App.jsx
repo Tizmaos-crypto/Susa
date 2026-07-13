@@ -1111,9 +1111,9 @@ export default function App() {
     }
   };
 
-  /* ── 락커 배정된 건 (예약별 다수 락커를 평탄화, 반납 완료 행은 제외) ── */
+  /* ── 락커 배정된 건 (예약별 다수 락커를 평탄화, 반납·취소 행은 제외) ── */
   const allLockers = reservations
-    .filter((r) => r.locker && !r.returnedAt)
+    .filter((r) => r.locker && !r.returnedAt && !r.canceledAt)
     .flatMap((r) => parseLockers(r.locker).map((l) => ({ ...l, r })));
 
   /* 객실별 락커 수 (일행 그룹 판별용) */
@@ -1258,7 +1258,10 @@ export default function App() {
 
   /* ── 예약 조회: 타이핑 즉시 클라이언트 필터 (하루치 reservations에서 추림) ── */
   /* 현장 등록(H열 "현장")은 폼 예약 조회 목록에서 제외 */
-  const formReservations = reservations.filter((r) => r.source !== "현장");
+  /* 고객이 취소한 예약(N열)은 어디에도 잡히지 않게 전면 제외 */
+  const formReservations = reservations.filter(
+    (r) => r.source !== "현장" && !r.canceledAt
+  );
   /* 락커가 모두 반납된 예약(returnedAt)은 조회 목록에서 제외 (단, 명단 추출에는 포함) */
   const activeReservations = formReservations.filter((r) => !r.returnedAt);
   const nameCands = nameQueryCandidates(searchName); // 한 번만 계산 (행마다 반복 X)
@@ -1276,6 +1279,7 @@ export default function App() {
   /* ── 부별 실시간 예약 인원 (선택 날짜 기준, 전체 인원 합산) ── */
   const slotTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
   reservations.forEach((r) => {
+    if (r.canceledAt) return; // 취소 예약은 정원에서 제외
     const s = matchSlot(r.timeSlot);
     if (s in slotTotals) slotTotals[s] += Number(r.headcount) || 0;
   });
@@ -1340,7 +1344,7 @@ export default function App() {
   /* 전 날짜 중복 판정: 같은 이용일 + 같은 시설 + 같은 객실이 2건 이상 (예약 조회와 동일 기준) */
   const allDupStats = {};
   allRes.forEach((r) => {
-    if (r.source === "현장" || r.returnedAt) return;
+    if (r.source === "현장" || r.returnedAt || r.canceledAt) return;
     const rk = normalizeRoom(r.room);
     if (!rk || rk.includes("체크인")) return;
     const key = `${parseDate(r.date)}|${r.site || "휘닉스"}|${rk}`;
@@ -1349,7 +1353,7 @@ export default function App() {
     if (r.rowIndex < allDupStats[key].firstRow) allDupStats[key].firstRow = r.rowIndex;
   });
   const guestDupBadge = (r) => {
-    if (r.source === "현장" || r.returnedAt) return null;
+    if (r.source === "현장" || r.returnedAt || r.canceledAt) return null;
     const rk = normalizeRoom(r.room);
     if (!rk || rk.includes("체크인")) return null;
     const stat = allDupStats[`${parseDate(r.date)}|${r.site || "휘닉스"}|${rk}`];
@@ -1361,6 +1365,7 @@ export default function App() {
   const panelTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
   const panelDupExtras = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
   allRes.forEach((r) => {
+    if (r.canceledAt) return; // 취소 예약 제외
     if (parseDate(r.date) !== panelDate) return;
     const s = matchSlot(r.timeSlot);
     if (!(s in panelTotals)) return;
@@ -1912,6 +1917,7 @@ export default function App() {
                       )}
                       {r.source === "현장" && <span className="chip-etc">현장</span>}
                       {r.returnedAt && <span className="chip-etc">반납됨</span>}
+                      {r.canceledAt && <span className="chip-cancel">취소됨</span>}
                       <span className="gcell-ts">접수 {formatTimestamp(r.timestamp)}</span>
                       <button
                         className="guest-edit-btn"

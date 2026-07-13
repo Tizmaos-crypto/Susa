@@ -1180,6 +1180,15 @@ select.input option {
   color: var(--text-muted);
   white-space: nowrap;
 }
+.chip-cancel {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  white-space: nowrap;
+}
 
 /* ── 예약 조회: 중복 예약 뱃지 ── */
 .dup-badge {
