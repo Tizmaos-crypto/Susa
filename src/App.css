@@ -1229,6 +1229,21 @@ select.input option {
 .check-note b {
   font-weight: 800;
 }
+.check-note-line {
+  margin-bottom: 5px;
+}
+.check-note-ask {
+  color: #fcd34d;
+  font-size: 13.5px;
+  margin-top: 8px;
+}
+.check-note-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.check-note-list li {
+  margin: 4px 0;
+}
 .check-used { color: #fca5a5; }
 .check-noshow { color: #86efac; }
 .ok-badge {

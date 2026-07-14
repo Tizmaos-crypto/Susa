@@ -744,13 +744,26 @@ function ReservationCard({ r, onUpdate, dupBadge, prevInfo }) {
 
         {needsCheck && (
           <div className="check-note">
-            전날 <b>{prevInfo.slots || "예약"}</b> 이력이 있습니다 —{" "}
-            {prevInfo.used ? (
-              <b className="check-used">락커 배정 기록 있음 (실제 이용했을 가능성 높음)</b>
-            ) : (
-              <b className="check-noshow">락커 배정 없음 (노쇼 가능성)</b>
-            )}
-            . 퇴실 당일 1부 혜택은 <b>투숙 중 미이용 고객</b> 대상이니 확인해 주세요.
+            <div className="check-note-line">
+              전날 <b>{prevInfo.slots || "예약"}</b> 이력이 있습니다 —{" "}
+              {prevInfo.used ? (
+                <b className="check-used">락커 배정 기록 있음 (실제 이용했을 가능성 높음)</b>
+              ) : (
+                <b className="check-noshow">락커 배정 없음 (노쇼 가능성)</b>
+              )}
+            </div>
+            <div className="check-note-line check-note-ask">
+              👉 <b>연박 고객인지 확인이 필요합니다.</b>
+            </div>
+            <ul className="check-note-list">
+              <li>
+                <b>연박</b>이라면 오늘은 <b>새로운 1박의 1회 이용</b>이므로 정상입니다.
+              </li>
+              <li>
+                <b>오늘 퇴실</b>이라면, 퇴실 당일 1부 혜택은{" "}
+                <b>투숙 중 한 번도 이용하지 않은 고객</b>만 대상입니다.
+              </li>
+            </ul>
           </div>
         )}
       </div>
