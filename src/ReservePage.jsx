@@ -25,7 +25,6 @@ const SITE_CONFIG = {
     showRoomCapacityNotice: true,
     showRoomNote: true,
     lateCheckout: true,
-    beachTowelLine: false,
     roomPlaceholder: { ko: "예: B428 / 체크인전", en: "e.g., B428 / before check-in" },
     maxHeadcount: 8,
     stayOnlyNotice: false,
@@ -36,7 +35,6 @@ const SITE_CONFIG = {
     showRoomCapacityNotice: false,
     showRoomNote: false,
     lateCheckout: false,
-    beachTowelLine: true,
     roomPlaceholder: { ko: "예: 1201", en: "e.g., 1201" },
     maxHeadcount: 2,
     stayOnlyNotice: true,
@@ -79,8 +77,6 @@ const STR = {
       lateWarnPost:
         " 혜택 명단이 이용 당일 수영장 마감 후 객실 프론트로 전달되기 때문에, 수영장 이용일과 퇴실일이 같은 경우에는 적용이 불가합니다.",
       benefitFine: "※ 상세 적용 절차는 프론트 데스크로 문의 바랍니다.",
-      towelLabel: "[비치타월 안내]",
-      towelBody: "비치타월을 객실당 1장 무료로 대여해 드립니다. (1·2부에 한해)",
       hoursTitle: "⏰ 운영 시간 및 락커 배정 안내",
       hoursLabel: "[운영 시간]",
       hours: [
@@ -165,8 +161,6 @@ const STR = {
       lateWarnPost:
         " The benefit list is delivered to the room front desk after the pool closes on the day of use, so it cannot be applied when the pool-use date and check-out date are the same.",
       benefitFine: "※ For detailed procedures, please ask the front desk.",
-      towelLabel: "[Beach Towel]",
-      towelBody: "One beach towel per room is provided free of charge. (Part 1·2 only)",
       hoursTitle: "⏰ Operating Hours & Locker Assignment",
       hoursLabel: "[Operating Hours]",
       hours: [
@@ -464,13 +458,6 @@ export default function ReservePage() {
                   {tIntro.lateWarnPost}
                 </p>
                 <p className="rsv-notice-fine">{tIntro.benefitFine}</p>
-              </>
-            )}
-
-            {config.beachTowelLine && (
-              <>
-                <p className="rsv-notice-sub">{tIntro.towelLabel}</p>
-                <p>{tIntro.towelBody}</p>
               </>
             )}
           </section>
