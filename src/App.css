@@ -1203,6 +1203,33 @@ select.input option {
 .card-dup { border-color: #fca5a5; }
 .card-dup .room-badge { position: relative; }
 
+/* ── 확인 필요 (전날 예약자의 1부 예약 — 퇴실 당일 예외 혜택 검증) ── */
+.check-badge {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #fde68a;
+  color: #92400e;
+  white-space: nowrap;
+}
+.card-check {
+  border-color: #f59e0b;
+}
+.check-note {
+  margin-top: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 9px;
+  padding: 9px 12px;
+}
+.check-note b {
+  font-weight: 800;
+}
+
 /* ── 레이트 체크아웃 명단 다운로드 버튼 ── */
 .lc-export-bar {
   display: flex;

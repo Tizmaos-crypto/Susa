@@ -48,6 +48,19 @@ function normalizeRoom(s) {
   return String(s || "").toUpperCase().replace(/\s+/g, "");
 }
 
+/* 날짜 이동: shiftDate("2026-07-12", -1) → "2026-07-11" */
+function shiftDate(dateStr, delta) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ""));
+  if (!m) return "";
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/* 고객 식별 키 (POS 확인 기준과 동일: 시설 + 객실 + 성함) */
+function guestKey(r) {
+  return `${r.site || "휘닉스"}|${normalizeRoom(r.room)}|${String(r.name || "").trim()}`;
+}
+
 /* ── 영타 → 한글 변환 (두벌식) : "rla" → "김" ──
    바쁠 때 한/영 안 바꾸고 영문으로 친 성함도 검색되게 하기 위함 */
 const EN2KO = {
@@ -614,7 +627,7 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
 /* ================================================================
    Reservation Card
    ================================================================ */
-function ReservationCard({ r, onUpdate, dupBadge }) {
+function ReservationCard({ r, onUpdate, dupBadge, needsCheck }) {
   const [tokens, setTokens] = useState(() => lockerToTokens(r.locker));
   const [memo, setMemo] = useState(r.memo || "");
   const [saving, setSaving] = useState(false);
@@ -655,7 +668,9 @@ function ReservationCard({ r, onUpdate, dupBadge }) {
       : "btn btn-default";
 
   return (
-    <div className={`card ${expanded ? "card-expanded" : ""} ${dupBadge ? "card-dup" : ""}`}>
+    <div
+      className={`card ${expanded ? "card-expanded" : ""} ${dupBadge ? "card-dup" : ""} ${needsCheck ? "card-check" : ""}`}
+    >
       {/* 요약 (클릭하면 락커·메모 펼침) */}
       <div
         className="card-summary"
@@ -667,6 +682,14 @@ function ReservationCard({ r, onUpdate, dupBadge }) {
         <div className="card-top">
           <div className="name-lead">{r.name || "(성함 없음)"}</div>
           {r.site === "플캠" && <span className="site-chip">플캠</span>}
+          {needsCheck && (
+            <span
+              className="check-badge"
+              title="전날 예약 이력이 있는 고객의 1부 예약입니다. 퇴실 당일 1부 예외 혜택은 투숙 중 미이용 고객 대상이므로, 실제 이용 여부를 확인해 주세요."
+            >
+              ⚠️ 확인 필요
+            </span>
+          )}
           {dupBadge === "first" && (
             <span className="dup-badge dup-first">🥇 첫 예약</span>
           )}
@@ -712,6 +735,13 @@ function ReservationCard({ r, onUpdate, dupBadge }) {
           )}
           <span className="expand-hint">{expanded ? "▲ 접기" : "▼ 락커 · 메모"}</span>
         </div>
+
+        {needsCheck && (
+          <div className="check-note">
+            전날 예약 이력이 있는 고객의 <b>1부</b> 예약입니다. 퇴실 당일 1부 혜택은
+            <b> 투숙 중 미이용 고객</b> 대상이니 실제 이용 여부를 확인해 주세요.
+          </div>
+        )}
       </div>
 
       {/* 상세 (펼침) — 락커·메모 입력 */}
@@ -889,6 +919,7 @@ export default function App() {
   const [allLoading, setAllLoading] = useState(false);
   const [allError, setAllError] = useState("");
   const [panelDate, setPanelDate] = useState(getToday()); // 예약자 검색 현황판 조회 날짜
+  const [prevDayRes, setPrevDayRes] = useState([]); // 전날 예약 (퇴실 당일 1부 확인용)
   /* 예약자 검색 편집 상태 */
   const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
   const [editDate, setEditDate] = useState("");
@@ -957,6 +988,27 @@ export default function App() {
   useEffect(() => {
     if (apiUrl) fetchData("", "", selectedDate);
   }, [apiUrl]); // eslint-disable-line
+
+  /* ── 전날 예약 로드 (퇴실 당일 1부 예외 혜택 — "확인 필요" 판정용)
+        전날 데이터는 거의 변하지 않으므로 날짜가 바뀔 때만 1회 조회 ── */
+  useEffect(() => {
+    if (!apiUrl || !selectedDate) return;
+    const prev = shiftDate(selectedDate, -1);
+    if (!prev) return;
+    let aborted = false;
+    (async () => {
+      try {
+        const resp = await fetch(`${apiUrl}?date=${prev}`);
+        const json = await resp.json();
+        if (!aborted && !json.error) setPrevDayRes(json.reservations || []);
+      } catch {
+        /* 실패해도 조회는 정상 동작 (확인 필요 표시만 생략) */
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, [apiUrl, selectedDate]);
 
   /* ── 예약자 검색: 전 날짜 데이터 로드 (탭 열 때 1회 + 수동 새로고침만, 반복 조회 없음) ── */
   const fetchAllDates = useCallback(async () => {
@@ -1310,6 +1362,14 @@ export default function App() {
     return r.rowIndex === stat.firstRow ? "first" : "extra";
   };
 
+  /* ── "확인 필요": 전날 예약 이력이 있는 고객이 오늘 1부를 예약한 경우
+        (퇴실 당일 1부 예외 혜택은 투숙 중 미이용 고객 대상 → 전날 이용했다면 확인 필요) ── */
+  const prevGuests = new Set(
+    prevDayRes.filter((r) => !r.canceledAt).map(guestKey)
+  );
+  const needsCheckFor = (r) =>
+    matchSlot(r.timeSlot) === "1부" && prevGuests.has(guestKey(r));
+
   /* ── 부별 중복 예약 인원 (직원 현황판 전용: 실질 인원 = 전체 − 중복)
         중복 = 같은 객실의 첫 예약 이후 건. 전화 확인 후 직원이 정리할 잠정치 ── */
   const slotDupExtras = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
@@ -1589,6 +1649,7 @@ export default function App() {
                 r={r}
                 onUpdate={handleUpdate}
                 dupBadge={dupBadgeFor(r)}
+                needsCheck={needsCheckFor(r)}
               />
             ))}
           </div>
