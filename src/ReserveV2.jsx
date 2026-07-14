@@ -91,7 +91,7 @@ const STR = {
     people: (n) => `${n}명`,
     dupChecking: "예약 내역 확인 중…",
     dupBlocked:
-      "⚠️ 이전에 예약한 내역이 있어 예약을 진행할 수 없습니다. 1박당 1일 1회만 이용 가능합니다. 변경이 필요하시면 수영장 프론트에 문의해 주세요.",
+      "⚠️ 동일한 성함·객실로 해당 날짜에 이미 예약하신 내역이 있어 예약을 진행할 수 없습니다. 1박당 1일 1회만 이용 가능합니다. 변경이 필요하시면 수영장 프론트에 문의해 주세요.",
     next: "다음",
     back: "뒤로",
     submit: "제출",
@@ -197,7 +197,7 @@ const STR = {
     people: (n) => (n === 1 ? "1 person" : `${n} people`),
     dupChecking: "Checking existing reservations…",
     dupBlocked:
-      "⚠️ You already have a reservation, so you cannot book again. The pool may be used once per day, per night's stay. Please contact the pool front desk if you need a change.",
+      "⚠️ A reservation already exists for this name and room on the selected date, so you cannot book again. The pool may be used once per day, per night's stay. Please contact the pool front desk if you need a change.",
     next: "Next",
     back: "Back",
     submit: "Submit",
@@ -316,10 +316,11 @@ export default function ReserveV2() {
     return { remaining, closed: remaining <= 0 || remaining < headcount };
   };
 
-  /* ── 객실+날짜 입력 시 중복 예약 확인 (디바운스) ── */
+  /* ── 성함+객실+날짜 입력 시 중복 예약 확인 (셋 다 일치할 때만 중복, 디바운스) ── */
   useEffect(() => {
     const r = room.trim();
-    if (!apiUrl || !r || !date) {
+    const n = name.trim();
+    if (!apiUrl || !r || !n || !date) {
       setDupState("idle");
       return;
     }
@@ -328,6 +329,7 @@ export default function ReserveV2() {
       try {
         const params = new URLSearchParams({
           action: "checkDuplicate",
+          name: n,
           room: r,
           date,
           site: SITE_LABEL,
@@ -340,7 +342,7 @@ export default function ReserveV2() {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [apiUrl, room, date]);
+  }, [apiUrl, name, room, date]);
 
   const canNext1 =
     name.trim() &&

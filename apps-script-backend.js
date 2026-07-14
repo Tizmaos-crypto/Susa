@@ -147,11 +147,13 @@ function doGet(e) {
     }
 
     // 중복 예약 실시간 확인 (신규 예약 페이지용) — 개인정보 없이 여부만 반환
+    //  판정: 같은 날짜 + 같은 시설 + 같은 객실 + 같은 성함 (이름·객실 모두 일치할 때만)
     if ((e.parameter.action || "") === "checkDuplicate") {
       const dDate = formatDate((e.parameter.date || "").trim());
       const dRoom = (e.parameter.room || "").trim().toUpperCase().replace(/\s+/g, "");
+      const dName = (e.parameter.name || "").trim();
       const dSite = (e.parameter.site || "").trim() || "휘닉스";
-      if (!dDate || !dRoom) return createJsonResponse({ duplicate: false });
+      if (!dDate || !dRoom || !dName) return createJsonResponse({ duplicate: false });
       const sh = getSheet();
       const lr = sh.getLastRow();
       if (lr < 2) return createJsonResponse({ duplicate: false });
@@ -160,6 +162,7 @@ function doGet(e) {
         if (isCanceled(rw)) return false; // 취소 건은 중복으로 보지 않음 (재예약 허용)
         if (formatDate(rw[3]) !== dDate) return false;
         if ((String(rw[12] || "").trim() || "휘닉스") !== dSite) return false;
+        if (String(rw[1] || "").trim() !== dName) return false; // 성함도 일치해야 중복
         return String(rw[2] || "").toUpperCase().replace(/\s+/g, "") === dRoom;
       });
       return createJsonResponse({ duplicate: dup });
@@ -310,10 +313,10 @@ function doPost(e) {
 
       // 온라인 고객 예약 검증 (현장 직원 등록은 예외 — 초과·중복 허용)
       if (source !== "현장") {
-        // ① 같은 이용일·시설·객실 중복 예약 차단 (실제 객실 번호에 한함)
+        // ① 중복 예약 차단: 같은 이용일 + 시설 + 객실 + 성함이 모두 일치할 때만
         const roomNorm = room.toUpperCase().replace(/\s+/g, "");
         const isRealRoom = roomNorm && roomNorm.indexOf("체크인") < 0;
-        if (isRealRoom) {
+        if (isRealRoom && name) {
           const dateNorm = formatDate(date);
           const siteNorm = site || "휘닉스"; // 구글폼 유입(빈값)은 휘닉스로 간주
           const lastRow = sheet.getLastRow();
@@ -323,11 +326,12 @@ function doPost(e) {
               if (isCanceled(rw)) return false; // 취소 건은 중복 아님 (재예약 허용)
               if (formatDate(rw[3]) !== dateNorm) return false;
               if ((String(rw[12] || "").trim() || "휘닉스") !== siteNorm) return false;
+              if (String(rw[1] || "").trim() !== name) return false; // 성함도 일치해야 중복
               return String(rw[2] || "").toUpperCase().replace(/\s+/g, "") === roomNorm;
             });
             if (dup) {
               return createJsonResponse({
-                error: "해당 객실은 이미 그 날짜에 예약이 있습니다. 수영장 프론트에 문의해주세요.",
+                error: "동일한 성함·객실로 해당 날짜에 이미 예약이 있습니다. 수영장 프론트에 문의해주세요.",
                 duplicate: true,
               });
             }
