@@ -627,7 +627,8 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
 /* ================================================================
    Reservation Card
    ================================================================ */
-function ReservationCard({ r, onUpdate, dupBadge, needsCheck }) {
+function ReservationCard({ r, onUpdate, dupBadge, prevInfo }) {
+  const needsCheck = !!(prevInfo && prevInfo.had);
   const [tokens, setTokens] = useState(() => lockerToTokens(r.locker));
   const [memo, setMemo] = useState(r.memo || "");
   const [saving, setSaving] = useState(false);
@@ -685,9 +686,14 @@ function ReservationCard({ r, onUpdate, dupBadge, needsCheck }) {
           {needsCheck && (
             <span
               className="check-badge"
-              title="전날 예약 이력이 있는 고객의 1부 예약입니다. 퇴실 당일 1부 예외 혜택은 투숙 중 미이용 고객 대상이므로, 실제 이용 여부를 확인해 주세요."
+              title="전날 예약 이력이 있는 고객의 1부 예약입니다. 퇴실 당일 1부 혜택은 투숙 중 미이용 고객 대상이므로 실제 이용 여부를 확인해 주세요."
             >
               ⚠️ 확인 필요
+            </span>
+          )}
+          {prevInfo && !prevInfo.had && (
+            <span className="ok-badge" title="전날 예약 이력이 없는 1부 예약입니다.">
+              ✅ 전날 예약 없음
             </span>
           )}
           {dupBadge === "first" && (
@@ -738,8 +744,13 @@ function ReservationCard({ r, onUpdate, dupBadge, needsCheck }) {
 
         {needsCheck && (
           <div className="check-note">
-            전날 예약 이력이 있는 고객의 <b>1부</b> 예약입니다. 퇴실 당일 1부 혜택은
-            <b> 투숙 중 미이용 고객</b> 대상이니 실제 이용 여부를 확인해 주세요.
+            전날 <b>{prevInfo.slots || "예약"}</b> 이력이 있습니다 —{" "}
+            {prevInfo.used ? (
+              <b className="check-used">락커 배정 기록 있음 (실제 이용했을 가능성 높음)</b>
+            ) : (
+              <b className="check-noshow">락커 배정 없음 (노쇼 가능성)</b>
+            )}
+            . 퇴실 당일 1부 혜택은 <b>투숙 중 미이용 고객</b> 대상이니 확인해 주세요.
           </div>
         )}
       </div>
@@ -920,6 +931,7 @@ export default function App() {
   const [allError, setAllError] = useState("");
   const [panelDate, setPanelDate] = useState(getToday()); // 예약자 검색 현황판 조회 날짜
   const [prevDayRes, setPrevDayRes] = useState([]); // 전날 예약 (퇴실 당일 1부 확인용)
+  const [prevDayLoaded, setPrevDayLoaded] = useState(false); // 로드 전엔 "없음"으로 오판 방지
   /* 예약자 검색 편집 상태 */
   const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
   const [editDate, setEditDate] = useState("");
@@ -996,13 +1008,18 @@ export default function App() {
     const prev = shiftDate(selectedDate, -1);
     if (!prev) return;
     let aborted = false;
+    setPrevDayLoaded(false);
     (async () => {
       try {
         const resp = await fetch(`${apiUrl}?date=${prev}`);
         const json = await resp.json();
-        if (!aborted && !json.error) setPrevDayRes(json.reservations || []);
+        if (aborted) return;
+        if (!json.error) {
+          setPrevDayRes(json.reservations || []);
+          setPrevDayLoaded(true);
+        }
       } catch {
-        /* 실패해도 조회는 정상 동작 (확인 필요 표시만 생략) */
+        /* 실패해도 조회는 정상 동작 (뱃지만 생략) */
       }
     })();
     return () => {
@@ -1362,13 +1379,27 @@ export default function App() {
     return r.rowIndex === stat.firstRow ? "first" : "extra";
   };
 
-  /* ── "확인 필요": 전날 예약 이력이 있는 고객이 오늘 1부를 예약한 경우
-        (퇴실 당일 1부 예외 혜택은 투숙 중 미이용 고객 대상 → 전날 이용했다면 확인 필요) ── */
-  const prevGuests = new Set(
-    prevDayRes.filter((r) => !r.canceledAt).map(guestKey)
-  );
-  const needsCheckFor = (r) =>
-    matchSlot(r.timeSlot) === "1부" && prevGuests.has(guestKey(r));
+  /* ── 1부 예약의 전날 이력 판정 (퇴실 당일 1부 예외 혜택은 투숙 중 미이용 고객 대상)
+        · 전날 예약 있음 → "확인 필요" (노쇼였을 수도 있으므로 락커 배정 기록도 함께 표시)
+        · 전날 예약 없음 → "전날 예약 없음" (정상)
+        1부가 아니거나 전날 데이터 로드 전이면 표시하지 않음 ── */
+  const prevByGuest = {};
+  prevDayRes.forEach((r) => {
+    if (r.canceledAt) return;
+    const k = guestKey(r);
+    (prevByGuest[k] = prevByGuest[k] || []).push(r);
+  });
+  const prevInfoFor = (r) => {
+    if (!prevDayLoaded) return null;
+    if (matchSlot(r.timeSlot) !== "1부") return null;
+    const list = prevByGuest[guestKey(r)];
+    if (!list || list.length === 0) return { had: false };
+    return {
+      had: true,
+      used: list.some((p) => p.locker || p.returnedAt), // 락커 기록 = 실제 방문 흔적
+      slots: [...new Set(list.map((p) => matchSlot(p.timeSlot)).filter(Boolean))].join(", "),
+    };
+  };
 
   /* ── 부별 중복 예약 인원 (직원 현황판 전용: 실질 인원 = 전체 − 중복)
         중복 = 같은 객실의 첫 예약 이후 건. 전화 확인 후 직원이 정리할 잠정치 ── */
@@ -1649,7 +1680,7 @@ export default function App() {
                 r={r}
                 onUpdate={handleUpdate}
                 dupBadge={dupBadgeFor(r)}
-                needsCheck={needsCheckFor(r)}
+                prevInfo={prevInfoFor(r)}
               />
             ))}
           </div>

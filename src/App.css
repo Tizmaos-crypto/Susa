@@ -1229,6 +1229,17 @@ select.input option {
 .check-note b {
   font-weight: 800;
 }
+.check-used { color: #fca5a5; }
+.check-noshow { color: #86efac; }
+.ok-badge {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #15803d;
+  white-space: nowrap;
+}
 
 /* ── 레이트 체크아웃 명단 다운로드 버튼 ── */
 .lc-export-bar {
