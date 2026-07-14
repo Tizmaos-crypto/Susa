@@ -188,6 +188,11 @@ function getCurrentSlot() {
   return Object.keys(TIME_SLOTS).slice(-1)[0]; // 영업 종료 후엔 마지막 부
 }
 
+/* 레이트 체크아웃 적용 표시 (G열 저장값 / 판별)
+   컴플레인 등으로 레이트 체크아웃을 약속한 고객을 직원이 표시해 두는 용도 */
+const LATE_YES = "네, 적용해 주세요.";
+const hasLateCheckout = (r) => String(r.lateCheckout || "").includes("적용");
+
 /* ── 락커 직렬화 (F열에 "남12, 여15" 형식으로 저장) ── */
 function parseLockers(raw) {
   if (!raw) return [];
@@ -660,6 +665,14 @@ function ReservationCard({ r, onUpdate, prevInfo }) {
         <div className="card-top">
           <div className="name-lead">{r.name || "(성함 없음)"}</div>
           {r.site === "플캠" && <span className="site-chip">플캠</span>}
+          {hasLateCheckout(r) && (
+            <span
+              className="late-badge"
+              title="레이트 체크아웃 적용 대상입니다. 퇴실 시 반드시 적용해 주세요."
+            >
+              🕐 레이트 체크아웃
+            </span>
+          )}
           {needsCheck && (
             <span
               className="check-badge"
@@ -712,6 +725,12 @@ function ReservationCard({ r, onUpdate, prevInfo }) {
           )}
           <span className="expand-hint">{expanded ? "▲ 접기" : "▼ 락커 · 메모"}</span>
         </div>
+
+        {hasLateCheckout(r) && (
+          <div className="late-note">
+            🕐 <b>레이트 체크아웃 적용 대상</b>입니다 — 퇴실 시 반드시 적용해 주세요.
+          </div>
+        )}
 
         {needsCheck && (
           <div className="check-note">
@@ -914,6 +933,7 @@ export default function App() {
   const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
   const [editDate, setEditDate] = useState("");
   const [editSlot, setEditSlot] = useState("");
+  const [editLate, setEditLate] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [tab, setTab] = useState("register");
@@ -1104,11 +1124,12 @@ export default function App() {
     }
   };
 
-  /* ── 예약 편집 (날짜·부) — 예약자 검색 탭 ── */
+  /* ── 예약 편집 (날짜·부·레이트 체크아웃) — 예약자 검색 탭 ── */
   const startEdit = (r) => {
     setEditId(r.rowIndex);
     setEditDate(parseDate(r.date));
     setEditSlot(matchSlot(r.timeSlot) || "1부");
+    setEditLate(hasLateCheckout(r));
   };
   const cancelEdit = () => setEditId(null);
 
@@ -1116,6 +1137,7 @@ export default function App() {
     const fields = {
       date: editDate,
       timeSlot: `${editSlot} (${TIME_SLOTS[editSlot]})`,
+      lateCheckout: editLate ? LATE_YES : "",
     };
     setEditSaving(true);
     mutationCount.current += 1;
@@ -1838,6 +1860,9 @@ export default function App() {
                       >
                         {r.site || "휘닉스"}
                       </span>
+                      {hasLateCheckout(r) && (
+                        <span className="late-badge">🕐 레이트 체크아웃</span>
+                      )}
                       {r.source === "현장" && <span className="chip-etc">현장</span>}
                       {r.returnedAt && <span className="chip-etc">반납됨</span>}
                       {r.canceledAt && <span className="chip-cancel">취소됨</span>}
@@ -1875,6 +1900,14 @@ export default function App() {
                                 </option>
                               ))}
                             </select>
+                          </label>
+                          <label className="guest-edit-check" title="컴플레인 대응 등으로 레이트 체크아웃을 약속한 고객에게 체크해 두면, 예약 조회 화면에 표시되어 놓치지 않습니다.">
+                            <input
+                              type="checkbox"
+                              checked={editLate}
+                              onChange={(e) => setEditLate(e.target.checked)}
+                            />
+                            🕐 레이트 체크아웃 적용
                           </label>
                         </div>
                         <div className="guest-edit-actions">

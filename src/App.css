@@ -1142,6 +1142,47 @@ select.input option {
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+/* ── 레이트 체크아웃 적용 대상 (컴플레인 대응 등 — 놓치면 2차 컴플레인) ── */
+.late-badge {
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #7c3aed;
+  color: #fff;
+  white-space: nowrap;
+}
+.late-note {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #c4b5fd;
+  background: rgba(124, 58, 237, 0.14);
+  border: 1px solid rgba(139, 92, 246, 0.45);
+  border-radius: 9px;
+  padding: 9px 12px;
+}
+.late-note b {
+  font-weight: 800;
+  color: #ddd6fe;
+}
+
+/* 예약자 검색 편집 — 레이트 체크아웃 체크박스 */
+.guest-edit-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  padding-bottom: 10px;
+  cursor: pointer;
+}
+.guest-edit-check input {
+  width: 18px;
+  height: 18px;
+}
 .chip-cancel {
   font-size: 12px;
   font-weight: 800;
