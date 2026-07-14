@@ -179,7 +179,6 @@ function nameQueryCandidates(query) {
 
 /* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
 const SLOT_END_MIN = { "1부": 13 * 60, "2부": 15 * 60 + 30, "3부": 18 * 60, "4부": 21 * 60 };
-const SLOT_START_MIN = { "1부": 10 * 60, "2부": 13 * 60 + 30, "3부": 16 * 60, "4부": 18 * 60 + 30 };
 function getCurrentSlot() {
   const d = new Date();
   const mins = d.getHours() * 60 + d.getMinutes();
@@ -188,28 +187,6 @@ function getCurrentSlot() {
   }
   return Object.keys(TIME_SLOTS).slice(-1)[0]; // 영업 종료 후엔 마지막 부
 }
-
-/* 레이트 체크아웃 명단 이상 표시:
-   ① 3·4부인데 레이트 체크아웃 요구 (레이트 체크아웃은 1·2부 전용 혜택)
-   ② 이용 부가 이미 시작한 뒤에 접수 (접수 시각 > 이용일 해당 부 시작 시각)
-      = 당일 남은 자리를 뒤늦게 선점한 케이스 */
-function lateCheckoutFlags(r) {
-  const flags = [];
-  const slot = matchSlot(r.timeSlot);
-  if (slot === "3부" || slot === "4부") flags.push("3·4부 레이트체크아웃");
-  const startMin = SLOT_START_MIN[slot];
-  const d = parseDate(r.date);
-  if (startMin != null && /^\d{4}-\d{2}-\d{2}$/.test(d) && r.timestamp) {
-    const [y, mo, da] = d.split("-").map(Number);
-    const start = new Date(y, mo - 1, da, Math.floor(startMin / 60), startMin % 60, 0);
-    const booked = new Date(r.timestamp);
-    if (!isNaN(booked) && booked.getTime() > start.getTime()) flags.push("지난 부 예약");
-  }
-  return flags;
-}
-
-/* 레이트 체크아웃 저장값 (예약자 검색 편집 시 사용) */
-const LATE_YES = "네, 적용해 주세요.";
 
 /* ── 락커 직렬화 (F열에 "남12, 여15" 형식으로 저장) ── */
 function parseLockers(raw) {
@@ -627,7 +604,7 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
 /* ================================================================
    Reservation Card
    ================================================================ */
-function ReservationCard({ r, onUpdate, dupBadge, prevInfo }) {
+function ReservationCard({ r, onUpdate, prevInfo }) {
   const needsCheck = !!(prevInfo && prevInfo.had);
   const [tokens, setTokens] = useState(() => lockerToTokens(r.locker));
   const [memo, setMemo] = useState(r.memo || "");
@@ -670,7 +647,7 @@ function ReservationCard({ r, onUpdate, dupBadge, prevInfo }) {
 
   return (
     <div
-      className={`card ${expanded ? "card-expanded" : ""} ${dupBadge ? "card-dup" : ""} ${needsCheck ? "card-check" : ""}`}
+      className={`card ${expanded ? "card-expanded" : ""} ${needsCheck ? "card-check" : ""}`}
     >
       {/* 요약 (클릭하면 락커·메모 펼침) */}
       <div
@@ -695,12 +672,6 @@ function ReservationCard({ r, onUpdate, dupBadge, prevInfo }) {
             <span className="ok-badge" title="전날 예약 이력이 없는 1부 예약입니다.">
               ✅ 전날 예약 없음
             </span>
-          )}
-          {dupBadge === "first" && (
-            <span className="dup-badge dup-first">🥇 첫 예약</span>
-          )}
-          {dupBadge === "extra" && (
-            <span className="dup-badge dup-extra">중복 예약</span>
           )}
           <div className="slot-badge">
             {slot}
@@ -854,7 +825,7 @@ function EditableLockerNumber({ item, onCommit }) {
 /* ================================================================
    부별 실시간 예약 현황판 (오른쪽 고정, 스크롤 따라옴)
    ================================================================ */
-function SlotStatusPanel({ totals, dupExtras, capacity = 180, date, onDateChange }) {
+function SlotStatusPanel({ totals, capacity = 180, date, onDateChange }) {
   const nowSlot = getCurrentSlot(); // 지금 접수 기준 부 (현장 등록 자동 선택과 동일)
   const [showPicker, setShowPicker] = useState(false);
   const isToday = !date || date === getToday();
@@ -889,7 +860,6 @@ function SlotStatusPanel({ totals, dupExtras, capacity = 180, date, onDateChange
       )}
       {Object.entries(TIME_SLOTS).map(([k, time]) => {
         const n = totals[k] || 0;
-        const extra = (dupExtras && dupExtras[k]) || 0;
         const pct = Math.min(100, Math.round((n / capacity) * 100));
         const full = n >= capacity;
         const isNow = isToday && k === nowSlot; // "현재"는 오늘일 때만
@@ -909,11 +879,6 @@ function SlotStatusPanel({ totals, dupExtras, capacity = 180, date, onDateChange
               </span>
             </div>
             <div className="slot-aside-time">{time}</div>
-            {extra > 0 && (
-              <div className="slot-aside-real">
-                실질 <b>{n - extra}</b>명 <span>(중복 −{extra})</span>
-              </div>
-            )}
             <div className="slot-aside-bar">
               <div className="slot-aside-fill" style={{ width: `${pct}%` }} />
             </div>
@@ -949,7 +914,6 @@ export default function App() {
   const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
   const [editDate, setEditDate] = useState("");
   const [editSlot, setEditSlot] = useState("");
-  const [editLate, setEditLate] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [tab, setTab] = useState("register");
@@ -1140,12 +1104,11 @@ export default function App() {
     }
   };
 
-  /* ── 예약 편집 (날짜·부·레이트체크아웃) — 예약자 검색 탭 ── */
+  /* ── 예약 편집 (날짜·부) — 예약자 검색 탭 ── */
   const startEdit = (r) => {
     setEditId(r.rowIndex);
     setEditDate(parseDate(r.date));
     setEditSlot(matchSlot(r.timeSlot) || "1부");
-    setEditLate(String(r.lateCheckout || "").includes("적용"));
   };
   const cancelEdit = () => setEditId(null);
 
@@ -1153,7 +1116,6 @@ export default function App() {
     const fields = {
       date: editDate,
       timeSlot: `${editSlot} (${TIME_SLOTS[editSlot]})`,
-      lateCheckout: editLate ? LATE_YES : "",
     };
     setEditSaving(true);
     mutationCount.current += 1;
@@ -1366,32 +1328,6 @@ export default function App() {
     if (s in slotTotals) slotTotals[s] += Number(r.headcount) || 0;
   });
 
-  /* 같은 객실이 여러 부에 중복 예약한 경우: 가장 먼저 접수된(rowIndex 최소) 건이 "첫 예약"
-     - "체크인전"은 실제 객실이 아니므로 제외 (서로 다른 고객이 같은 문구를 적음)
-     - 예약 경로(휘닉스/플캠)를 키에 포함: 두 시설의 같은 호수는 다른 방 */
-  const dupKeyFor = (r) => {
-    const roomKey = normalizeRoom(r.room);
-    if (!roomKey || roomKey.includes("체크인")) return null;
-    // 예약 경로가 빈 건(구글폼 유입)은 휘닉스로 간주 — 구글폼은 휘닉스 전용 채널이라
-    // 구글폼 + 웹앱 이중 예약도 같은 객실이면 중복으로 잡는다
-    return `${r.site || "휘닉스"}|${roomKey}`;
-  };
-  const roomStats = {};
-  activeReservations.forEach((r) => {
-    const key = dupKeyFor(r);
-    if (!key) return;
-    if (!roomStats[key]) roomStats[key] = { count: 0, firstRow: r.rowIndex };
-    roomStats[key].count += 1;
-    if (r.rowIndex < roomStats[key].firstRow) roomStats[key].firstRow = r.rowIndex;
-  });
-  const dupBadgeFor = (r) => {
-    const key = dupKeyFor(r);
-    if (!key) return null;
-    const stat = roomStats[key];
-    if (!stat || stat.count < 2) return null;
-    return r.rowIndex === stat.firstRow ? "first" : "extra";
-  };
-
   /* ── 1부 예약의 전날 이력 판정 (퇴실 당일 1부 예외 혜택은 투숙 중 미이용 고객 대상)
         · 전날 예약 있음 → "확인 필요" (노쇼였을 수도 있으므로 락커 배정 기록도 함께 표시)
         · 전날 예약 없음 → "전날 예약 없음" (정상)
@@ -1413,15 +1349,6 @@ export default function App() {
       slots: [...new Set(list.map((p) => matchSlot(p.timeSlot)).filter(Boolean))].join(", "),
     };
   };
-
-  /* ── 부별 중복 예약 인원 (직원 현황판 전용: 실질 인원 = 전체 − 중복)
-        중복 = 같은 객실의 첫 예약 이후 건. 전화 확인 후 직원이 정리할 잠정치 ── */
-  const slotDupExtras = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
-  activeReservations.forEach((r) => {
-    if (dupBadgeFor(r) !== "extra") return;
-    const s = matchSlot(r.timeSlot);
-    if (s in slotDupExtras) slotDupExtras[s] += Number(r.headcount) || 0;
-  });
 
   /* ── 예약자 검색 (전 날짜): 필터 + 이용일·부·접수순 정렬 ── */
   const guestNameCands = nameQueryCandidates(guestName);
@@ -1445,101 +1372,15 @@ export default function App() {
             a.rowIndex - b.rowIndex
         );
 
-  /* 전 날짜 중복 판정: 같은 이용일 + 같은 시설 + 같은 객실이 2건 이상 (예약 조회와 동일 기준) */
-  const allDupStats = {};
-  allRes.forEach((r) => {
-    if (r.source === "현장" || r.returnedAt || r.canceledAt) return;
-    const rk = normalizeRoom(r.room);
-    if (!rk || rk.includes("체크인")) return;
-    const key = `${parseDate(r.date)}|${r.site || "휘닉스"}|${rk}`;
-    if (!allDupStats[key]) allDupStats[key] = { count: 0, firstRow: r.rowIndex };
-    allDupStats[key].count += 1;
-    if (r.rowIndex < allDupStats[key].firstRow) allDupStats[key].firstRow = r.rowIndex;
-  });
-  const guestDupBadge = (r) => {
-    if (r.source === "현장" || r.returnedAt || r.canceledAt) return null;
-    const rk = normalizeRoom(r.room);
-    if (!rk || rk.includes("체크인")) return null;
-    const stat = allDupStats[`${parseDate(r.date)}|${r.site || "휘닉스"}|${rk}`];
-    if (!stat || stat.count < 2) return null;
-    return r.rowIndex === stat.firstRow ? "first" : "extra";
-  };
-
   /* ── 예약자 검색 현황판: 선택 날짜(panelDate)의 부별 인원 (전 날짜 데이터에서 집계) ── */
   const panelTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
-  const panelDupExtras = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
   allRes.forEach((r) => {
     if (r.canceledAt) return; // 취소 예약 제외
     if (parseDate(r.date) !== panelDate) return;
     const s = matchSlot(r.timeSlot);
     if (!(s in panelTotals)) return;
     panelTotals[s] += Number(r.headcount) || 0;
-    if (guestDupBadge(r) === "extra") panelDupExtras[s] += Number(r.headcount) || 0;
   });
-
-  /* ── 레이트 체크아웃 희망 명단 (G열 "적용" 응답, 반납 객실도 포함) ──
-     플캠(연계 숙박업소)은 프로모션 대상이 아니므로 정산 명단에서 제외 */
-  const lateCheckoutList = formReservations.filter(
-    (r) => r.site !== "플캠" && String(r.lateCheckout || "").includes("적용")
-  );
-  const lateCheckoutFlaggedCount = lateCheckoutList.filter(
-    (r) => lateCheckoutFlags(r).length > 0
-  ).length;
-
-  const downloadLateCheckoutCSV = () => {
-    if (lateCheckoutList.length === 0) {
-      alert("레이트 체크아웃을 희망한 객실이 없습니다.");
-      return;
-    }
-    const headers = [
-      "접수 시각", // A: 링크로 예약한 시각 (당일 오후 1부 선점 등 확인)
-      "객실 호수", // B
-      "예약자명", // C
-      "이용 날짜", // D: 수영장 이용 예약 날짜
-      "예약 시간", // E: 1~4부
-      "입장 인원", // F
-      "이용 락커", // G: 락커 배정 = 실제 방문 확인
-      "반납여부", // H: 반납 = 실제 이용 확인
-      "확인 필요", // I: 이상(지난 부 예약 / 3·4부 레이트체크아웃) 자동 표시
-    ];
-    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = lateCheckoutList
-      .slice()
-      .sort(
-        (a, b) =>
-          // 확인 필요(이상) 건을 맨 위로
-          lateCheckoutFlags(b).length - lateCheckoutFlags(a).length ||
-          parseDate(a.date).localeCompare(parseDate(b.date)) ||
-          slotOrder(a.timeSlot) - slotOrder(b.timeSlot) ||
-          String(a.room).localeCompare(String(b.room))
-      )
-      .map((r) =>
-        [
-          formatTimestamp(r.timestamp),
-          r.room,
-          r.name,
-          parseDate(r.date),
-          matchSlot(r.timeSlot),
-          r.headcount || "",
-          r.locker || "",
-          r.returnedAt ? "반납" : r.locker ? "미반납" : "",
-          lateCheckoutFlags(r).map((f) => `⚠️ ${f}`).join(" · "),
-        ]
-          .map(esc)
-          .join(",")
-      );
-    // UTF-8 BOM으로 Excel 한글 깨짐 방지
-    const csv = "﻿" + [headers.map(esc).join(","), ...rows].join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `레이트체크아웃_명단_${selectedDate}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   /* ── Setup ── */
   if (!apiUrl) return <SetupScreen onSave={saveUrl} />;
@@ -1605,19 +1446,6 @@ export default function App() {
       {tab === "search" && (
         <div className="content content-flex">
           <div className="main-col">
-          <div className="lc-export-bar">
-            <button
-              className="btn btn-default lc-export-btn"
-              onClick={downloadLateCheckoutCSV}
-              title="레이트 체크아웃 희망 객실 명단 (반납 객실 포함) CSV 다운로드"
-            >
-              ⬇ 레이트 체크아웃 명단
-              {lateCheckoutList.length > 0 ? ` (${lateCheckoutList.length})` : ""}
-            </button>
-            {lateCheckoutFlaggedCount > 0 && (
-              <span className="lc-flag-badge">⚠️ 확인 필요 {lateCheckoutFlaggedCount}</span>
-            )}
-          </div>
           <div className="search-bar">
             <div className="search-field search-date">
               <label className="label">날짜</label>
@@ -1692,13 +1520,12 @@ export default function App() {
                 key={r.rowIndex}
                 r={r}
                 onUpdate={handleUpdate}
-                dupBadge={dupBadgeFor(r)}
                 prevInfo={prevInfoFor(r)}
               />
             ))}
           </div>
           </div>
-          <SlotStatusPanel totals={slotTotals} dupExtras={slotDupExtras} />
+          <SlotStatusPanel totals={slotTotals} />
         </div>
       )}
 
@@ -1935,7 +1762,7 @@ export default function App() {
               dayReservations={reservations}
             />
           </div>
-          <SlotStatusPanel totals={slotTotals} dupExtras={slotDupExtras} />
+          <SlotStatusPanel totals={slotTotals} />
         </div>
       )}
 
@@ -1997,9 +1824,7 @@ export default function App() {
           ) : (
             <div className="guest-table">
               {guestResults.map((r) => {
-                const dup = guestDupBadge(r);
                 const slot = matchSlot(r.timeSlot);
-                const wantsLate = String(r.lateCheckout || "").includes("적용");
                 const editing = editId === r.rowIndex;
                 return (
                   <div key={r.rowIndex} className="guest-item">
@@ -2013,13 +1838,6 @@ export default function App() {
                       >
                         {r.site || "휘닉스"}
                       </span>
-                      {wantsLate && <span className="chip-late">레이트 체크아웃</span>}
-                      {dup === "first" && (
-                        <span className="dup-badge dup-first">🥇 첫 예약</span>
-                      )}
-                      {dup === "extra" && (
-                        <span className="dup-badge dup-extra">중복 예약</span>
-                      )}
                       {r.source === "현장" && <span className="chip-etc">현장</span>}
                       {r.returnedAt && <span className="chip-etc">반납됨</span>}
                       {r.canceledAt && <span className="chip-cancel">취소됨</span>}
@@ -2058,14 +1876,6 @@ export default function App() {
                               ))}
                             </select>
                           </label>
-                          <label className="guest-edit-check">
-                            <input
-                              type="checkbox"
-                              checked={editLate}
-                              onChange={(e) => setEditLate(e.target.checked)}
-                            />
-                            레이트 체크아웃 적용
-                          </label>
                         </div>
                         <div className="guest-edit-actions">
                           <button
@@ -2093,7 +1903,6 @@ export default function App() {
           </div>
           <SlotStatusPanel
             totals={panelTotals}
-            dupExtras={panelDupExtras}
             date={panelDate}
             onDateChange={setPanelDate}
           />
