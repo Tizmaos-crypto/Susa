@@ -48,6 +48,9 @@ function normalizeRoom(s) {
   return String(s || "").toUpperCase().replace(/\s+/g, "");
 }
 
+/* 투숙 이력 조회 범위 (최대 10박까지 커버) */
+const HISTORY_DAYS = 10;
+
 /* 날짜 이동: shiftDate("2026-07-12", -1) → "2026-07-11" */
 function shiftDate(dateStr, delta) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ""));
@@ -676,14 +679,17 @@ function ReservationCard({ r, onUpdate, prevInfo }) {
           {needsCheck && (
             <span
               className="check-badge"
-              title="전날 예약 이력이 있는 고객의 1부 예약입니다. 퇴실 당일 1부 혜택은 투숙 중 미이용 고객 대상이므로 실제 이용 여부를 확인해 주세요."
+              title="투숙 중 이전 예약 이력이 있는 1부 예약입니다. 몇 박 투숙인지 확인해 잔여 이용 횟수를 따져 주세요."
             >
-              ⚠️ 확인 필요
+              ⚠️ 확인 필요 · 이전 이용 {prevInfo.usedCount}회
             </span>
           )}
           {prevInfo && !prevInfo.had && (
-            <span className="ok-badge" title="전날 예약 이력이 없는 1부 예약입니다.">
-              ✅ 전날 예약 없음
+            <span
+              className="ok-badge"
+              title="최근 이전 예약 이력이 없는 1부 예약입니다. 미이용 고객이므로 혜택 대상입니다."
+            >
+              ✅ 이전 이용 없음
             </span>
           )}
           <div className="slot-badge">
@@ -735,23 +741,32 @@ function ReservationCard({ r, onUpdate, prevInfo }) {
         {needsCheck && (
           <div className="check-note">
             <div className="check-note-line">
-              전날 <b>{prevInfo.slots || "예약"}</b> 이력이 있습니다 —{" "}
-              {prevInfo.used ? (
-                <b className="check-used">락커 배정 기록 있음 (실제 이용했을 가능성 높음)</b>
-              ) : (
-                <b className="check-noshow">락커 배정 없음 (노쇼 가능성)</b>
-              )}
+              이전 예약 이력 <b>{prevInfo.items.length}건</b> · 락커 배정 기록{" "}
+              <b className="check-used">{prevInfo.usedCount}회</b> (= 실제 이용 추정)
             </div>
+            <ul className="check-note-list check-history">
+              {prevInfo.items.map((it, i) => (
+                <li key={i}>
+                  {it.date} <b>{it.slot}</b> —{" "}
+                  {it.used ? (
+                    <b className="check-used">락커 O (이용함)</b>
+                  ) : (
+                    <b className="check-noshow">락커 X (노쇼 가능)</b>
+                  )}
+                </li>
+              ))}
+            </ul>
             <div className="check-note-line check-note-ask">
-              👉 <b>연박 고객인지 확인이 필요합니다.</b>
+              👉 <b>몇 박 투숙인지 확인해 주세요.</b> (1박당 1회 이용)
             </div>
             <ul className="check-note-list">
               <li>
-                <b>연박</b>이라면 오늘은 <b>새로운 1박의 1회 이용</b>이므로 정상입니다.
+                <b>투숙 박수 − 이미 이용한 횟수 = 잔여 횟수.</b> 잔여가 남아 있으면 오늘
+                이용은 정상입니다. (예: 3박인데 2회만 이용 → 1회 남음)
               </li>
               <li>
-                <b>오늘 퇴실</b>이라면, 퇴실 당일 1부 혜택은{" "}
-                <b>투숙 중 한 번도 이용하지 않은 고객</b>만 대상입니다.
+                <b>오늘 퇴실</b>이고 <b>잔여 횟수가 없다면</b> 퇴실 당일 1부·레이트
+                체크아웃 혜택 대상이 아닙니다.
               </li>
             </ul>
           </div>
@@ -927,8 +942,8 @@ export default function App() {
   const [allLoading, setAllLoading] = useState(false);
   const [allError, setAllError] = useState("");
   const [panelDate, setPanelDate] = useState(getToday()); // 예약자 검색 현황판 조회 날짜
-  const [prevDayRes, setPrevDayRes] = useState([]); // 전날 예약 (퇴실 당일 1부 확인용)
-  const [prevDayLoaded, setPrevDayLoaded] = useState(false); // 로드 전엔 "없음"으로 오판 방지
+  const [historyRes, setHistoryRes] = useState([]); // 투숙 기간 이용 이력 (최근 10일)
+  const [historyLoaded, setHistoryLoaded] = useState(false); // 로드 전엔 "없음"으로 오판 방지
   /* 예약자 검색 편집 상태 */
   const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
   const [editDate, setEditDate] = useState("");
@@ -998,22 +1013,24 @@ export default function App() {
     if (apiUrl) fetchData("", "", selectedDate);
   }, [apiUrl]); // eslint-disable-line
 
-  /* ── 전날 예약 로드 (퇴실 당일 1부 예외 혜택 — "확인 필요" 판정용)
-        전날 데이터는 거의 변하지 않으므로 날짜가 바뀔 때만 1회 조회 ── */
+  /* ── 투숙 기간 이용 이력 로드 (퇴실 당일 1부 예외 혜택 판정용)
+        1박당 1회이므로 여러 날 투숙 시 잔여 횟수 계산이 필요 → 최근 10일치를 한 번에 조회.
+        과거 데이터는 거의 변하지 않으므로 날짜가 바뀔 때만 1회 조회 (폴링 없음) ── */
   useEffect(() => {
     if (!apiUrl || !selectedDate) return;
-    const prev = shiftDate(selectedDate, -1);
-    if (!prev) return;
+    const from = shiftDate(selectedDate, -HISTORY_DAYS);
+    const to = shiftDate(selectedDate, -1);
+    if (!from || !to) return;
     let aborted = false;
-    setPrevDayLoaded(false);
+    setHistoryLoaded(false);
     (async () => {
       try {
-        const resp = await fetch(`${apiUrl}?date=${prev}`);
+        const resp = await fetch(`${apiUrl}?action=range&from=${from}&to=${to}`);
         const json = await resp.json();
         if (aborted) return;
         if (!json.error) {
-          setPrevDayRes(json.reservations || []);
-          setPrevDayLoaded(true);
+          setHistoryRes(json.reservations || []);
+          setHistoryLoaded(true);
         }
       } catch {
         /* 실패해도 조회는 정상 동작 (뱃지만 생략) */
@@ -1350,25 +1367,33 @@ export default function App() {
     if (s in slotTotals) slotTotals[s] += Number(r.headcount) || 0;
   });
 
-  /* ── 1부 예약의 전날 이력 판정 (퇴실 당일 1부 예외 혜택은 투숙 중 미이용 고객 대상)
-        · 전날 예약 있음 → "확인 필요" (노쇼였을 수도 있으므로 락커 배정 기록도 함께 표시)
-        · 전날 예약 없음 → "전날 예약 없음" (정상)
-        1부가 아니거나 전날 데이터 로드 전이면 표시하지 않음 ── */
-  const prevByGuest = {};
-  prevDayRes.forEach((r) => {
+  /* ── 1부 예약의 투숙 중 이용 이력 판정 (퇴실 당일 1부 예외 혜택 검증)
+        1박당 1회이므로 "몇 박 투숙 − 이미 이용한 횟수 = 잔여 횟수"를 따져야 함.
+        시스템은 투숙 박수를 모르므로, 이전 이력을 나열해 직원이 판단하도록 제공.
+        (락커 배정 기록 = 실제 방문 흔적 / 없으면 노쇼 가능성) ── */
+  const historyByGuest = {};
+  historyRes.forEach((r) => {
     if (r.canceledAt) return;
     const k = guestKey(r);
-    (prevByGuest[k] = prevByGuest[k] || []).push(r);
+    (historyByGuest[k] = historyByGuest[k] || []).push(r);
   });
   const prevInfoFor = (r) => {
-    if (!prevDayLoaded) return null;
+    if (!historyLoaded) return null;
     if (matchSlot(r.timeSlot) !== "1부") return null;
-    const list = prevByGuest[guestKey(r)];
+    const list = historyByGuest[guestKey(r)];
     if (!list || list.length === 0) return { had: false };
+    const items = list
+      .slice()
+      .sort((a, b) => parseDate(a.date).localeCompare(parseDate(b.date)))
+      .map((p) => ({
+        date: parseDate(p.date),
+        slot: matchSlot(p.timeSlot) || "—",
+        used: !!(p.locker || p.returnedAt),
+      }));
     return {
       had: true,
-      used: list.some((p) => p.locker || p.returnedAt), // 락커 기록 = 실제 방문 흔적
-      slots: [...new Set(list.map((p) => matchSlot(p.timeSlot)).filter(Boolean))].join(", "),
+      items,
+      usedCount: items.filter((i) => i.used).length, // 락커 기록이 있는 = 실제 이용
     };
   };
 

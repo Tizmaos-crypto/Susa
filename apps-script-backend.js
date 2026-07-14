@@ -168,6 +168,24 @@ function doGet(e) {
       return createJsonResponse({ duplicate: dup });
     }
 
+    // 기간 조회 (직원 데스크: 투숙 중 이용 이력 확인용) — from~to 사이 예약 반환
+    if ((e.parameter.action || "") === "range") {
+      const from = formatDate((e.parameter.from || "").trim());
+      const to = formatDate((e.parameter.to || "").trim());
+      if (!from || !to) return createJsonResponse({ reservations: [] });
+      const sh = getSheet();
+      const lr = sh.getLastRow();
+      if (lr < 2) return createJsonResponse({ reservations: [] });
+      const rows = sh.getRange(2, 1, lr - 1, NUM_COLS).getValues();
+      const out = [];
+      rows.forEach(function (rw, i) {
+        const d = formatDate(rw[3]);
+        if (!d || d < from || d > to) return; // YYYY-MM-DD 문자열 비교로 범위 판정
+        out.push(rowToObj(rw, i + 2));
+      });
+      return createJsonResponse({ reservations: out });
+    }
+
     // 내 예약 확인 (성함 + 객실 정확히 일치할 때만, 본인 예약 최소 정보만 반환)
     if ((e.parameter.action || "") === "lookup") {
       const lName = (e.parameter.name || "").trim();

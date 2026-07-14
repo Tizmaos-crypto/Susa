@@ -1234,6 +1234,16 @@ select.input option {
 .check-note-list li {
   margin: 4px 0;
 }
+.check-history {
+  list-style: none;
+  padding-left: 2px;
+  margin: 6px 0 4px;
+  border-left: 2px solid rgba(245, 158, 11, 0.4);
+}
+.check-history li {
+  padding-left: 10px;
+  font-variant-numeric: tabular-nums;
+}
 .check-used { color: #fca5a5; }
 .check-noshow { color: #86efac; }
 .ok-badge {
