@@ -141,7 +141,7 @@ const STR = {
       exceptBody:
         "If you have not used all of your complimentary pool visits (one per night) during your stay, we exceptionally offer Part 1 (10:00–13:00) on your check-out day, together with a complimentary 2-hour late check-out.",
       exceptRoom:
-        "However, for designated rooms and Healious, late check-out is provided only until 12:00.",
+        "However, for designated rooms and Hillius, late check-out is provided only until 12:00.",
       exceptFine: "Eligibility is confirmed at the pool desk on site.",
       roomLabel: "[Room Assignment Required]",
       roomBody:
