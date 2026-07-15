@@ -33,6 +33,7 @@ const STR = {
       exceptLabel: "🎁 [퇴실 당일 예외 혜택]",
       exceptBody:
         "투숙 기간 중 수영장 무료 이용 혜택(1박당 1회)을 모두 사용하지 못하신 고객님께는 예외적으로, 퇴실 당일 1부(10:00~13:00) 이용과 레이트 체크아웃 2시간 무료 혜택을 함께 제공해 드립니다.",
+      exceptRoom: "단, 지정객실 및 힐리우스는 레이트 체크아웃이 12시까지만 제공됩니다.",
       exceptFine: "적용 여부는 현장 수영장 데스크에서 확인 후 안내해 드립니다.",
       roomLabel: "[객실 배정 필수]",
       roomBody:
@@ -139,6 +140,8 @@ const STR = {
       exceptLabel: "🎁 [Check-out Day Exception]",
       exceptBody:
         "If you have not used all of your complimentary pool visits (one per night) during your stay, we exceptionally offer Part 1 (10:00–13:00) on your check-out day, together with a complimentary 2-hour late check-out.",
+      exceptRoom:
+        "However, for designated rooms and Healious, late check-out is provided only until 12:00.",
       exceptFine: "Eligibility is confirmed at the pool desk on site.",
       roomLabel: "[Room Assignment Required]",
       roomBody:
@@ -605,6 +608,7 @@ export default function ReserveV2() {
             <div className="rsv-except-box">
               <p className="rsv-except-title">{tIntro.exceptLabel}</p>
               <p>{tIntro.exceptBody}</p>
+              <p className="rsv-except-room">{tIntro.exceptRoom}</p>
               <p className="rsv-except-fine">{tIntro.exceptFine}</p>
             </div>
 

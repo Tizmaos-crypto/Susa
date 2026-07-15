@@ -173,6 +173,16 @@
   color: #065f46 !important;
   margin: 6px 0 !important;
 }
+.rsv-except-room {
+  font-size: 13px !important;
+  font-weight: 800;
+  color: #b45309 !important;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 8px 11px;
+  margin: 8px 0 0 !important;
+}
 .rsv-except-fine {
   font-size: 12.5px !important;
   color: #059669 !important;
