@@ -1249,6 +1249,41 @@ export default function App() {
     }
   };
 
+  /* ── 예약 취소 / 취소 해제 — 예약자 검색 탭 ── */
+  const [cancelingRow, setCancelingRow] = useState(null);
+  const handleCancelReservation = async (r, restore) => {
+    const label = `${parseDate(r.date)} ${matchSlot(r.timeSlot)} · ${r.name || "무명"} (${r.room})`;
+    const msg = restore
+      ? `${label}\n\n취소를 해제하고 예약을 되살릴까요?`
+      : `${label}\n\n이 예약을 취소 처리할까요?\n취소된 예약은 정원에서 제외되고 목록에서 빠집니다.`;
+    if (!window.confirm(msg)) return;
+
+    setCancelingRow(r.rowIndex);
+    mutationCount.current += 1;
+    try {
+      await fetch(apiUrl, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "cancelReservation",
+          token: getAdminToken(),
+          rowIndex: r.rowIndex,
+          restore: !!restore,
+        }),
+      });
+      const canceledAt = restore ? "" : new Date().toString();
+      const patch = (list) =>
+        list.map((x) => (x.rowIndex === r.rowIndex ? { ...x, canceledAt } : x));
+      setAllRes(patch);
+      setReservations(patch); // 당일 목록·현황판도 동기화
+    } catch {
+      alert("취소 처리 실패 — 네트워크를 확인해주세요.");
+    } finally {
+      setCancelingRow(null);
+      mutationCount.current -= 1;
+      lastMutationAt.current = Date.now();
+    }
+  };
+
   /* ── 현장 고객 등록 ── */
   const handleAddReservation = async (data) => {
     try {
@@ -1978,7 +2013,23 @@ export default function App() {
                         className="guest-edit-btn"
                         onClick={() => (editing ? cancelEdit() : startEdit(r))}
                       >
-                        {editing ? "✕ 취소" : "✏️ 편집"}
+                        {editing ? "✕ 닫기" : "✏️ 편집"}
+                      </button>
+                      <button
+                        className={`guest-cancel-btn ${r.canceledAt ? "restore" : ""}`}
+                        onClick={() => handleCancelReservation(r, !!r.canceledAt)}
+                        disabled={cancelingRow === r.rowIndex}
+                        title={
+                          r.canceledAt
+                            ? "취소를 해제해 예약을 되살립니다"
+                            : "이 예약을 취소 처리합니다 (정원에서 제외)"
+                        }
+                      >
+                        {cancelingRow === r.rowIndex
+                          ? "처리중…"
+                          : r.canceledAt
+                            ? "↩ 취소 해제"
+                            : "🚫 예약 취소"}
                       </button>
                     </div>
 

@@ -184,6 +184,15 @@ function doPost(e) {
       return createJsonResponse({ success: true, marked: indices.length });
     }
 
+    // ---------- 예약 취소 / 취소 해제 (N열) ----------
+    //  직원용: 이미 토큰으로 인증된 요청이므로 본인 확인 절차는 없음
+    if (body.action === "cancelReservation") {
+      const row = Number(body.rowIndex);
+      if (!(row >= 2)) return createJsonResponse({ error: "잘못된 행입니다." });
+      sheet.getRange(row, 14).setValue(body.restore ? "" : new Date());
+      return createJsonResponse({ success: true, rowIndex: row, restored: !!body.restore });
+    }
+
     // ---------- 예약 편집 (날짜 D / 시간부 E / 레이트체크아웃 G) ----------
     if (body.action === "editReservation") {
       const row = Number(body.rowIndex);
