@@ -875,6 +875,53 @@ function EditableLockerNumber({ item, onCommit }) {
 }
 
 /* ================================================================
+   락커 현황 — 선택한 행의 메모 보기/작성
+   ================================================================ */
+function LockerMemoEditor({ r, onSave }) {
+  const [memo, setMemo] = useState(r.memo || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // 외부 데이터 변경 시 동기화
+  useEffect(() => {
+    setMemo(r.memo || "");
+  }, [r.memo]);
+
+  const dirty = memo !== (r.memo || "");
+
+  const handleSave = async () => {
+    if (!dirty || saving) return;
+    setSaving(true);
+    await onSave(r.rowIndex, r.locker, memo);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1600);
+  };
+
+  return (
+    <div className="locker-memo" onClick={(e) => e.stopPropagation()}>
+      <span className="locker-memo-label">
+        📝 {r.room} · {r.name || "—"}
+      </span>
+      <input
+        className="input locker-memo-input"
+        value={memo}
+        onChange={(e) => setMemo(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleSave()}
+        placeholder="메모 입력 (Enter 저장)"
+      />
+      <button
+        className={`btn ${saved ? "btn-saved" : dirty ? "btn-primary" : "btn-default"}`}
+        onClick={handleSave}
+        disabled={saving || !dirty}
+      >
+        {saving ? "저장중…" : saved ? "✓ 저장됨" : "저장"}
+      </button>
+    </div>
+  );
+}
+
+/* ================================================================
    부별 실시간 예약 현황판 (오른쪽 고정, 스크롤 따라옴)
    ================================================================ */
 function SlotStatusPanel({ totals, capacity = 180, date, onDateChange }) {
@@ -1722,7 +1769,7 @@ export default function App() {
                   </>
                 ) : (
                   <span className="select-bar-hint">
-                    행을 클릭하면 선택됩니다 · 여러 키를 한 번에 반납할 수 있어요
+                    행을 클릭하면 선택 + 메모 칸이 열립니다 · 여러 키를 한 번에 반납할 수 있어요
                   </span>
                 )}
               </div>
@@ -1759,12 +1806,18 @@ export default function App() {
                 ]
                   .filter(Boolean)
                   .join(" ");
+                // 같은 예약(행)의 락커가 여러 개 선택돼도 메모 칸은 첫 번째에만
+                const showMemo =
+                  isSelected &&
+                  visibleLockers.findIndex(
+                    (x) => x.r.rowIndex === item.r.rowIndex && selected.has(keyId(x))
+                  ) === idx;
                 return (
+                  <div key={`${item.r.rowIndex}-${idx}`} className="locker-row-wrap">
                   <div
-                    key={`${item.r.rowIndex}-${idx}`}
                     className={cls}
                     onClick={() => toggleSelect(id)}
-                    title="클릭하여 선택 / 해제"
+                    title="클릭하여 선택 / 해제 (메모 칸이 열립니다)"
                   >
                     <span
                       className="lcell lcell-check"
@@ -1814,6 +1867,10 @@ export default function App() {
                         🔑 반납
                       </button>
                     </span>
+                  </div>
+                  {showMemo && (
+                    <LockerMemoEditor r={item.r} onSave={handleUpdate} />
+                  )}
                   </div>
                 );
               })}
