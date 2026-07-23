@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getAdminToken, handleUnauthorized, clearAdminToken } from "./adminAuth.js";
 import "./App.css";
 
 /* ── 시간부 정보 ── */
@@ -234,6 +235,9 @@ function parseShorthand(token) {
 const STORAGE_KEY = "reservation_desk_api_url";
 
 function getSavedUrl() {
+  // 직원용 백엔드 주소는 환경변수(VITE_ADMIN_API_URL) 우선
+  const fromEnv = import.meta.env.VITE_ADMIN_API_URL;
+  if (fromEnv) return String(fromEnv).trim();
   try {
     return localStorage.getItem(STORAGE_KEY) || "";
   } catch {
@@ -244,6 +248,20 @@ function setSavedUrl(url) {
   try {
     localStorage.setItem(STORAGE_KEY, url);
   } catch {}
+}
+
+/* 모든 직원 요청에 토큰을 실어 보냅니다 (서버가 검증) */
+function withToken(params) {
+  params.set("token", getAdminToken());
+  return params;
+}
+/* 인증 실패 응답이면 로그인 화면으로 되돌림 */
+function checkAuth(json) {
+  if (json && json.unauthorized) {
+    handleUnauthorized();
+    return false;
+  }
+  return true;
 }
 
 /* ================================================================
@@ -981,9 +999,10 @@ export default function App() {
         if (name) params.set("name", name);
         if (date) params.set("date", date);
 
-        const resp = await fetch(`${apiUrl}?${params.toString()}`);
+        const resp = await fetch(`${apiUrl}?${withToken(params).toString()}`);
         const json = await resp.json();
         if (fetchId.current !== id) return;
+        if (!checkAuth(json)) return;
         // 반납/저장 진행 중이거나 그 완료 이전에 출발한 응답은 낡은 데이터일 수
         // 있으므로 폐기 (반납한 키가 잠깐 되살아나는 현상 방지)
         if (mutationCount.current > 0 || startedAt <= lastMutationAt.current) return;
@@ -1025,9 +1044,13 @@ export default function App() {
     setHistoryLoaded(false);
     (async () => {
       try {
-        const resp = await fetch(`${apiUrl}?action=range&from=${from}&to=${to}`);
+        const params = withToken(
+          new URLSearchParams({ action: "range", from, to })
+        );
+        const resp = await fetch(`${apiUrl}?${params.toString()}`);
         const json = await resp.json();
         if (aborted) return;
+        if (!checkAuth(json)) return;
         if (!json.error) {
           setHistoryRes(json.reservations || []);
           setHistoryLoaded(true);
@@ -1047,8 +1070,10 @@ export default function App() {
     setAllLoading(true);
     setAllError("");
     try {
-      const resp = await fetch(apiUrl); // 날짜 필터 없이 전체
+      // 날짜 필터 없이 전체 (직원 토큰 필요)
+      const resp = await fetch(`${apiUrl}?${withToken(new URLSearchParams()).toString()}`);
       const json = await resp.json();
+      if (!checkAuth(json)) return;
       if (json.error) {
         setAllError(json.error);
       } else {
@@ -1094,7 +1119,7 @@ export default function App() {
     try {
       await fetch(apiUrl, {
         method: "POST",
-        body: JSON.stringify({ action: "updateLocker", rowIndex, locker, memo }),
+        body: JSON.stringify({ action: "updateLocker", token: getAdminToken(), rowIndex, locker, memo }),
       });
     } catch {
       if (before)
@@ -1124,7 +1149,7 @@ export default function App() {
     try {
       await fetch(apiUrl, {
         method: "POST",
-        body: JSON.stringify({ action: "markReturned", rowIndices }),
+        body: JSON.stringify({ action: "markReturned", token: getAdminToken(), rowIndices }),
       });
     } catch {
       setReservations((prev) =>
@@ -1161,7 +1186,7 @@ export default function App() {
     try {
       await fetch(apiUrl, {
         method: "POST",
-        body: JSON.stringify({ action: "editReservation", rowIndex: r.rowIndex, ...fields }),
+        body: JSON.stringify({ action: "editReservation", token: getAdminToken(), rowIndex: r.rowIndex, ...fields }),
       });
       const patch = (list) =>
         list.map((x) => (x.rowIndex === r.rowIndex ? { ...x, ...fields } : x));
@@ -1182,7 +1207,7 @@ export default function App() {
     try {
       await fetch(apiUrl, {
         method: "POST",
-        body: JSON.stringify({ action: "addReservation", source: "현장", site: "휘닉스", ...data }),
+        body: JSON.stringify({ action: "addReservation", token: getAdminToken(), source: "현장", site: "휘닉스", ...data }),
       });
       // 등록 탭에 머문 채 목록만 갱신 (하루치 전체 — 검색어와 무관하게)
       setSelectedDate(data.date);
@@ -1446,13 +1471,13 @@ export default function App() {
         <button
           className="settings-btn"
           onClick={() => {
-            if (window.confirm("API URL을 재설정하시겠습니까?")) {
-              setSavedUrl("");
-              setApiUrl("");
+            if (window.confirm("로그아웃하시겠습니까? (토큰이 삭제됩니다)")) {
+              clearAdminToken();
+              window.location.reload();
             }
           }}
         >
-          ⚙ 설정
+          ⚙ 로그아웃
         </button>
       </header>
 
