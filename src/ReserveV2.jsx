@@ -118,13 +118,7 @@ const STR = {
     lookupNone: "해당 객실 번호로 예약된 내역이 없습니다.",
     lookupClose: "닫기",
     lookupCount: (n) => `예약 ${n}건`,
-    cancelBtn: "예약 취소",
-    cancelling: "취소 중…",
-    cancelConfirm: (d, s) =>
-      `${d} ${s} 예약을 취소하시겠습니까?\n\n취소 후에는 되돌릴 수 없으며, 다시 예약하셔야 합니다.\n예약 변경은 수영장 프론트에 문의해 주세요.`,
-    cancelDone: "예약이 취소되었습니다.",
-    cancelFail: "취소에 실패했습니다. 잠시 후 다시 시도해주세요.",
-    cancelNote: "※ 예약 변경은 불가합니다. 변경이 필요하시면 취소 후 다시 예약하시거나 수영장 프론트에 문의해 주세요.",
+    cancelInfo: "※ 예약 취소·변경은 수영장 프론트 데스크로 문의해 주세요.",
   },
   en: {
     langBtn: "🌐 한국어",
@@ -227,14 +221,7 @@ const STR = {
     lookupNone: "No reservation found for that room number.",
     lookupClose: "Close",
     lookupCount: (n) => `${n} reservation(s)`,
-    cancelBtn: "Cancel",
-    cancelling: "Cancelling…",
-    cancelConfirm: (d, s) =>
-      `Cancel your reservation for ${d} ${s}?\n\nThis cannot be undone — you would need to book again.\nFor changes, please contact the pool front desk.`,
-    cancelDone: "Your reservation has been cancelled.",
-    cancelFail: "Cancellation failed. Please try again in a moment.",
-    cancelNote:
-      "※ Reservations cannot be modified. To change, please cancel and book again, or contact the pool front desk.",
+    cancelInfo: "※ To cancel or change a reservation, please contact the pool front desk.",
   },
 };
 
@@ -286,8 +273,6 @@ export default function ReserveV2() {
   const [lkRoom, setLkRoom] = useState("");
   const [lkResults, setLkResults] = useState(null);
   const [lkLoading, setLkLoading] = useState(false);
-  const [cancelingRow, setCancelingRow] = useState(null);
-  const [lkMsg, setLkMsg] = useState("");
 
   const selectedSlot = SLOTS.find((s) => s.key === slotKey) || null;
   const slotDisplay = (s) => (s ? (lang === "en" ? s.labelEn : s.label) : "");
@@ -397,7 +382,6 @@ export default function ReserveV2() {
     if (!lkRoom.trim()) return;
     setLkLoading(true);
     setLkResults(null);
-    setLkMsg("");
     try {
       const params = new URLSearchParams({
         action: "lookup",
@@ -413,35 +397,6 @@ export default function ReserveV2() {
     }
   };
 
-  /* 예약 취소 (변경은 불가 — 취소만) */
-  const cancelReservation = async (r) => {
-    if (!window.confirm(t.cancelConfirm(r.date, r.timeSlot))) return;
-    setCancelingRow(r.rowIndex);
-    setLkMsg("");
-    try {
-      const resp = await fetch(apiUrl, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "cancelReservation",
-          rowIndex: r.rowIndex,
-          room: lkRoom.trim(),
-        }),
-      });
-      const json = await resp.json();
-      if (json.error) {
-        setLkMsg(json.error);
-      } else {
-        setLkMsg(t.cancelDone);
-        setLkResults((prev) => (prev || []).filter((x) => x.rowIndex !== r.rowIndex));
-        fetchAvail(); // 잔여 정원 갱신
-        setDupState("idle"); // 취소했으니 재예약 가능
-      }
-    } catch {
-      setLkMsg(t.cancelFail);
-    } finally {
-      setCancelingRow(null);
-    }
-  };
 
   const topButtons = (
     <>
@@ -482,8 +437,6 @@ export default function ReserveV2() {
           {lkLoading ? t.lookupSearching : t.lookupSearch}
         </button>
 
-        {lkMsg && <div className="rsv-lookup-msg">{lkMsg}</div>}
-
         {lkResults !== null && (
           <div className="rsv-lookup-results">
             {lkResults.length === 0 ? (
@@ -498,16 +451,9 @@ export default function ReserveV2() {
                       <span className="rsv-lookup-slot">{r.timeSlot}</span>
                       <span className="rsv-lookup-head">{t.people(r.headcount)}</span>
                     </div>
-                    <button
-                      className="rsv-cancel-btn"
-                      onClick={() => cancelReservation(r)}
-                      disabled={cancelingRow === r.rowIndex}
-                    >
-                      {cancelingRow === r.rowIndex ? t.cancelling : t.cancelBtn}
-                    </button>
                   </div>
                 ))}
-                <p className="rsv-cancel-note">{t.cancelNote}</p>
+                <p className="rsv-cancel-note">{t.cancelInfo}</p>
               </>
             )}
           </div>

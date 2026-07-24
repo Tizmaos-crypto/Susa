@@ -6,13 +6,12 @@
 //     대량 개인정보 유출이 물리적으로 불가능해야 합니다.
 //
 //  제공 기능 (모두 개인정보 대량 노출 없음):
-//   · availability     : 부별 잔여 정원 (집계 숫자만)
-//   · checkDuplicate   : 중복 예약 여부 (true/false만)
-//   · lookup           : 본인 예약 확인 (성함+객실 정확 일치 시, 최소 정보만)
-//   · addReservation   : 예약 등록 (쓰기 전용)
-//   · cancelReservation: 본인 예약 취소 (성함+객실 재확인 후)
+//   · availability : 부별 잔여 정원 (집계 숫자만)
+//   · checkDuplicate: 중복 예약 여부 (true/false만)
+//   · lookup       : 예약 확인 (객실 번호로 조회, 최소 정보만)
+//   · addReservation: 예약 등록 (쓰기 전용)
 //
-//  ❌ 없는 기능(직원용 백엔드에만 존재): 전체 조회 / 기간 조회 /
+//  ❌ 없는 기능(직원용 백엔드에만 존재): 전체 조회 / 기간 조회 / 예약 취소 /
 //     락커 배정 / 예약 편집 / 행 삭제 / 반납 처리
 //
 //  [설치]
@@ -234,26 +233,8 @@ function doPost(e) {
       return createJsonResponse({ success: true });
     }
 
-    // ---------- 본인 예약 취소 (객실 번호 재확인 후) ----------
-    if (body.action === "cancelReservation") {
-      const row = Number(body.rowIndex);
-      if (!(row >= 2)) return createJsonResponse({ error: "잘못된 요청입니다." });
-
-      const vals = sheet.getRange(row, 1, 1, NUM_COLS).getValues()[0];
-      const reqRoom = normRoom(body.room);
-
-      if (!reqRoom || reqRoom !== normRoom(vals[2])) {
-        return createJsonResponse({ error: "예약 정보가 일치하지 않습니다." });
-      }
-      if (isCanceled(vals)) {
-        return createJsonResponse({ error: "이미 취소된 예약입니다." });
-      }
-
-      sheet.getRange(row, 14).setValue(new Date()); // N열: 취소 시각
-      return createJsonResponse({ success: true });
-    }
-
-    // 그 외(락커·편집·삭제 등)는 이 백엔드에 존재하지 않음
+    // 그 외(취소·락커·편집·삭제 등)는 이 백엔드에 존재하지 않음
+    //  ※ 예약 취소는 고객이 직접 할 수 없고, 현장 수영장 데스크에서만 처리합니다.
     return createJsonResponse({ error: "지원하지 않는 요청입니다." });
   } catch (err) {
     return createJsonResponse({ error: err.message });

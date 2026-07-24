@@ -80,42 +80,11 @@
   min-width: 0;
   flex-wrap: wrap;
 }
-.rsv-cancel-btn {
-  flex-shrink: 0;
-  background: #fff;
-  border: 1.5px solid #fca5a5;
-  color: #b91c1c;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 7px 13px;
-  border-radius: 9px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.rsv-cancel-btn:hover:not(:disabled) {
-  background: #fef2f2;
-  border-color: #ef4444;
-}
-.rsv-cancel-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 .rsv-cancel-note {
   font-size: 12px;
   line-height: 1.6;
   color: #6b7280;
   margin: 12px 0 0;
-}
-.rsv-lookup-msg {
-  margin-top: 14px;
-  background: #ecfdf5;
-  border: 1px solid #6ee7b7;
-  color: #047857;
-  border-radius: 10px;
-  padding: 11px 13px;
-  font-size: 13.5px;
-  font-weight: 700;
 }
 .rsv-lookup-date {
   font-weight: 800;
