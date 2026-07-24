@@ -120,13 +120,12 @@ function doGet(e) {
       return createJsonResponse(computeAvailability((e.parameter.date || "").trim()));
     }
 
-    // 중복 예약 여부만 반환 (같은 날짜+시설+객실+성함이 모두 일치할 때만 true)
+    // 중복 예약 여부만 반환 (같은 날짜+시설+객실이 일치하면 true — 1박당 1일 1회)
     if (action === "checkDuplicate") {
       const dDate = formatDate((e.parameter.date || "").trim());
       const dRoom = normRoom(e.parameter.room);
-      const dName = (e.parameter.name || "").trim();
       const dSite = (e.parameter.site || "").trim() || "휘닉스";
-      if (!dDate || !dRoom || !dName) return createJsonResponse({ duplicate: false });
+      if (!dDate || !dRoom) return createJsonResponse({ duplicate: false });
 
       const sh = getSheet();
       const lr = sh.getLastRow();
@@ -136,17 +135,15 @@ function doGet(e) {
         if (isCanceled(rw)) return false;
         if (formatDate(rw[3]) !== dDate) return false;
         if ((String(rw[12] || "").trim() || "휘닉스") !== dSite) return false;
-        if (String(rw[1] || "").trim() !== dName) return false;
         return normRoom(rw[2]) === dRoom;
       });
       return createJsonResponse({ duplicate: dup });
     }
 
-    // 본인 예약 확인 — 성함+객실이 정확히 일치할 때만, 최소 정보만 반환
+    // 예약 확인 — 객실 번호로 조회 (이름은 저장하지 않음), 최소 정보만 반환
     if (action === "lookup") {
-      const lName = (e.parameter.name || "").trim();
       const lRoom = normRoom(e.parameter.room);
-      if (!lName || !lRoom) return createJsonResponse({ reservations: [] });
+      if (!lRoom) return createJsonResponse({ reservations: [] });
 
       const sh = getSheet();
       const lr = sh.getLastRow();
@@ -155,7 +152,6 @@ function doGet(e) {
       const out = [];
       rows.forEach(function (rw, i) {
         if (isCanceled(rw)) return;
-        if (String(rw[1] || "").trim() !== lName) return;
         if (normRoom(rw[2]) !== lRoom) return;
         out.push({
           rowIndex: i + 2,
@@ -185,18 +181,18 @@ function doPost(e) {
       const room = String(body.room || "").trim();
       if (!room) return createJsonResponse({ error: "객실 호수는 필수입니다." });
 
-      const name      = String(body.name  || "").trim();
       const date      = String(body.date  || "").trim();
       const timeSlot  = String(body.timeSlot || "").trim();
       const headcount = parseHeadcount(body.headcount);
       const site      = String(body.site  || "").trim(); // "휘닉스" / "플캠"
+      const name      = ""; // 예약 사이트는 이름을 수집하지 않음 (데스크에서 객실↔성함 확인)
       // 공개 백엔드에서는 항상 온라인 예약 (현장 등록은 직원 백엔드에서만 가능)
       const source = "";
 
-      // ① 중복 예약 차단 (같은 날짜+시설+객실+성함)
+      // ① 중복 예약 차단 (같은 날짜+시설+객실 — 1박당 1일 1회)
       const roomNorm = normRoom(room);
       const isRealRoom = roomNorm && roomNorm.indexOf("체크인") < 0;
-      if (isRealRoom && name) {
+      if (isRealRoom) {
         const dateNorm = formatDate(date);
         const siteNorm = site || "휘닉스";
         const lastRow = sheet.getLastRow();
@@ -206,12 +202,11 @@ function doPost(e) {
             if (isCanceled(rw)) return false;
             if (formatDate(rw[3]) !== dateNorm) return false;
             if ((String(rw[12] || "").trim() || "휘닉스") !== siteNorm) return false;
-            if (String(rw[1] || "").trim() !== name) return false;
             return normRoom(rw[2]) === roomNorm;
           });
           if (dup) {
             return createJsonResponse({
-              error: "동일한 성함·객실로 해당 날짜에 이미 예약이 있습니다. 수영장 프론트에 문의해주세요.",
+              error: "해당 객실은 그 날짜에 이미 예약이 있습니다. 수영장 프론트에 문의해주세요.",
               duplicate: true,
             });
           }
@@ -239,20 +234,15 @@ function doPost(e) {
       return createJsonResponse({ success: true });
     }
 
-    // ---------- 본인 예약 취소 (성함+객실 재확인 후에만) ----------
+    // ---------- 본인 예약 취소 (객실 번호 재확인 후) ----------
     if (body.action === "cancelReservation") {
       const row = Number(body.rowIndex);
       if (!(row >= 2)) return createJsonResponse({ error: "잘못된 요청입니다." });
 
       const vals = sheet.getRange(row, 1, 1, NUM_COLS).getValues()[0];
-      const reqName = String(body.name || "").trim();
       const reqRoom = normRoom(body.room);
 
-      if (
-        !reqName || !reqRoom ||
-        reqName !== String(vals[1] || "").trim() ||
-        reqRoom !== normRoom(vals[2])
-      ) {
+      if (!reqRoom || reqRoom !== normRoom(vals[2])) {
         return createJsonResponse({ error: "예약 정보가 일치하지 않습니다." });
       }
       if (isCanceled(vals)) {

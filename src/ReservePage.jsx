@@ -96,9 +96,10 @@ const STR = {
       noticeTitle: "📌 이용 안내 및 유의사항",
       roomCapacity:
         "객실별 이용 인원 및 혜택: 로얄 객실 최대 4인, 스위트 객실 최대 6인까지 무료 이용 가능합니다. (무료 인원 초과 시 객실당 최대 2인까지 투숙객 50% 할인 금액으로 현장 결제 후 추가 입장 가능 / 최대 입장 인원: 로얄 총 6인, 스위트 총 8인)",
-      entryPre: "입장 확인: 현장 수영·사우나 데스크에서 예약자 확인 후 입장하므로, 반드시",
-      entryBold: " '객실 예약자' 본인 성함",
-      entryPost: "으로 작성해 주세요.",
+      entryPre: "입장 확인: 예약은 ",
+      entryBold: "객실 번호로만",
+      entryPost:
+        " 접수되며, 현장 데스크에서 객실 번호와 예약자 성함이 일치하는지 확인 후 입장이 진행됩니다. 반드시 배정받으신 객실 번호로 예약해 주세요.",
       envPolicy:
         "환경 정책: 도내 환경 정책 및 자원순환 규제에 따라 젖은 수영복을 담을 일회용 비닐봉투는 시설 내 무상 제공되지 않습니다. 개인용 방수 가방이나 다회용 가방을 지참해 주시기 바랍니다.",
       startBtn: "위 내용을 확인했습니다 · 예약 시작하기",
@@ -180,9 +181,10 @@ const STR = {
       noticeTitle: "📌 Usage Guide & Notes",
       roomCapacity:
         "Room capacity & benefits: Royal rooms up to 4 guests, Suite rooms up to 6 guests may use the pool free of charge. (Beyond the free capacity, up to 2 more guests per room may enter after paying 50% of the guest rate on site / Maximum entry: Royal 6 total, Suite 8 total)",
-      entryPre: "Entry check: Since entry proceeds after verification at the on-site pool/sauna desk, please book under",
-      entryBold: " the room-holder's own name",
-      entryPost: ".",
+      entryPre: "Entry check: Reservations are made with your ",
+      entryBold: "room number only",
+      entryPost:
+        ". At the on-site desk, staff verify that the room number matches the guest's name before entry. Please book with your assigned room number.",
       envPolicy:
         "Environmental policy: Under local environmental and recycling regulations, disposable plastic bags for wet swimwear are not provided free on site. Please bring your own waterproof or reusable bag.",
       startBtn: "I have read the above · Start reservation",
@@ -253,7 +255,6 @@ export default function ReservePage() {
   const tIntro = t.intro;
 
   const [step, setStep] = useState(0);
-  const [name, setName] = useState("");
   const [room, setRoom] = useState("");
   const [headcount, setHeadcount] = useState(1);
   const [date, setDate] = useState(getToday());
@@ -300,7 +301,6 @@ export default function ReservePage() {
   };
 
   const canNext1 =
-    name.trim() &&
     room.trim() &&
     headcount >= 1 &&
     date &&
@@ -330,7 +330,6 @@ export default function ReservePage() {
           action: "addReservation",
           source: "",
           site: config.siteLabel,
-          name: name.trim(),
           room: room.trim(),
           date,
           timeSlot: selectedSlot.label, // 시트 저장은 항상 한글 라벨
@@ -386,9 +385,7 @@ export default function ReservePage() {
         <div className="rsv-card rsv-done">
           <div className="rsv-done-icon">✅</div>
           <h2>{t.doneTitle}</h2>
-          <div className="rsv-summary">
-            <Row label={t.rName} value={name} />
-            <Row label={t.rRoom} value={room} />
+          <div className="rsv-summary">            <Row label={t.rRoom} value={room} />
             <Row label={t.rDate} value={date} />
             <Row label={t.rSlot} value={slotDisplay(selectedSlot)} />
             <Row label={t.rHeadcount} value={t.people(headcount)} />
@@ -501,21 +498,13 @@ export default function ReservePage() {
       {/* ── STEP 1: 예약 정보 ── */}
       {step === 1 && (
         <div className="rsv-card">
-          <Field label={t.fName}>
-            <input
-              className="rsv-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t.phName}
-            />
-          </Field>
-
           <Field label={t.fRoom}>
             <input
               className="rsv-input"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
               placeholder={config.roomPlaceholder[lang]}
+              autoFocus
             />
             {config.showRoomNote && (
               <p className="rsv-note">
@@ -633,9 +622,7 @@ export default function ReservePage() {
       {step === 3 && (
         <div className="rsv-card">
           <h2 className="rsv-q">{t.confirmTitle}</h2>
-          <div className="rsv-summary">
-            <Row label={t.rName} value={name} />
-            <Row label={t.rRoom} value={room} />
+          <div className="rsv-summary">            <Row label={t.rRoom} value={room} />
             <Row label={t.rDate} value={date} />
             <Row label={t.rSlot} value={slotDisplay(selectedSlot)} />
             <Row label={t.rHeadcount} value={t.people(headcount)} />

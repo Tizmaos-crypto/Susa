@@ -71,9 +71,10 @@ const STR = {
       noticeTitle: "📌 이용 안내 및 유의사항",
       roomCapacity:
         "객실별 이용 인원: 로얄 객실 최대 4인, 스위트 객실 최대 6인까지 무료 이용이 가능합니다. (무료 인원 초과 시 객실당 최대 2인까지 투숙객 50% 할인 금액으로 현장 결제 후 추가 입장 가능 / 최대 입장 인원: 로얄 총 6인, 스위트 총 8인)",
-      entryPre: "입장 확인: 현장 수영·사우나 데스크에서 예약자 확인 후 입장하므로, 반드시",
-      entryBold: " '객실 예약자' 본인 성함",
-      entryPost: "으로 작성해 주세요.",
+      entryPre: "입장 확인: 예약은 ",
+      entryBold: "객실 번호로만",
+      entryPost:
+        " 접수되며, 현장 데스크에서 객실 번호와 예약자 성함이 일치하는지 확인 후 입장이 진행됩니다. 반드시 배정받으신 객실 번호로 예약해 주세요.",
       envPolicy:
         "환경 정책: 도내 환경 정책 및 자원순환 규제에 따라 젖은 수영복을 담을 일회용 비닐봉투는 시설 내 무상 제공되지 않습니다. 개인용 방수 가방이나 다회용 가방을 지참해 주시기 바랍니다.",
       startBtn: "위 내용을 확인했습니다 · 예약 시작하기",
@@ -92,7 +93,7 @@ const STR = {
     people: (n) => `${n}명`,
     dupChecking: "예약 내역 확인 중…",
     dupBlocked:
-      "⚠️ 동일한 성함·객실로 해당 날짜에 이미 예약하신 내역이 있어 예약을 진행할 수 없습니다. 1박당 1일 1회만 이용 가능합니다. 변경이 필요하시면 수영장 프론트에 문의해 주세요.",
+      "⚠️ 해당 객실은 이 날짜에 이미 예약이 있어 진행할 수 없습니다. 1박당 1일 1회만 이용 가능합니다. 변경이 필요하시면 수영장 프론트에 문의해 주세요.",
     next: "다음",
     back: "뒤로",
     submit: "제출",
@@ -111,10 +112,10 @@ const STR = {
     noApi: "예약 시스템 주소가 설정되지 않았습니다. 관리자에게 문의해주세요.",
     submitFail: "예약 전송에 실패했습니다. 네트워크를 확인하고 다시 시도해주세요.",
     lookupTitle: "📋 예약 확인",
-    lookupDesc: "예약하신 성함과 객실 번호를 입력하시면 예약 내역을 확인하실 수 있습니다.",
+    lookupDesc: "예약하신 객실 번호를 입력하시면 예약 내역을 확인하실 수 있습니다.",
     lookupSearch: "조회",
     lookupSearching: "조회 중…",
-    lookupNone: "해당 성함·객실 번호로 예약된 내역이 없습니다.",
+    lookupNone: "해당 객실 번호로 예약된 내역이 없습니다.",
     lookupClose: "닫기",
     lookupCount: (n) => `예약 ${n}건`,
     cancelBtn: "예약 취소",
@@ -179,9 +180,10 @@ const STR = {
       noticeTitle: "📌 Usage Guide & Notes",
       roomCapacity:
         "Room capacity: Royal rooms up to 4 guests, Suite rooms up to 6 guests may use the pool free of charge. (Beyond the free capacity, up to 2 more guests per room may enter after paying 50% of the guest rate on site / Maximum entry: Royal 6 total, Suite 8 total)",
-      entryPre: "Entry check: Since entry proceeds after verification at the on-site pool/sauna desk, please book under",
-      entryBold: " the room-holder's own name",
-      entryPost: ".",
+      entryPre: "Entry check: Reservations are made with your ",
+      entryBold: "room number only",
+      entryPost:
+        ". At the on-site desk, staff verify that the room number matches the guest's name before entry. Please book with your assigned room number.",
       envPolicy:
         "Environmental policy: Under local environmental and recycling regulations, disposable plastic bags for wet swimwear are not provided free on site. Please bring your own waterproof or reusable bag.",
       startBtn: "I have read the above · Start reservation",
@@ -200,7 +202,7 @@ const STR = {
     people: (n) => (n === 1 ? "1 person" : `${n} people`),
     dupChecking: "Checking existing reservations…",
     dupBlocked:
-      "⚠️ A reservation already exists for this name and room on the selected date, so you cannot book again. The pool may be used once per day, per night's stay. Please contact the pool front desk if you need a change.",
+      "⚠️ This room already has a reservation on the selected date, so you cannot book again. The pool may be used once per day, per night's stay. Please contact the pool front desk if you need a change.",
     next: "Next",
     back: "Back",
     submit: "Submit",
@@ -219,10 +221,10 @@ const STR = {
     noApi: "The reservation system address is not configured. Please contact the administrator.",
     submitFail: "Failed to send the reservation. Please check your connection and try again.",
     lookupTitle: "📋 My Reservation",
-    lookupDesc: "Enter the name and room number you booked with to see your reservation.",
+    lookupDesc: "Enter the room number you booked with to see your reservation.",
     lookupSearch: "Search",
     lookupSearching: "Searching…",
-    lookupNone: "No reservation found for that name and room number.",
+    lookupNone: "No reservation found for that room number.",
     lookupClose: "Close",
     lookupCount: (n) => `${n} reservation(s)`,
     cancelBtn: "Cancel",
@@ -265,7 +267,6 @@ export default function ReserveV2() {
   const tIntro = t.intro;
 
   const [step, setStep] = useState(0); // 0 안내 / 1 신청 / 2 확인
-  const [name, setName] = useState("");
   const [room, setRoom] = useState("");
   const [headcount, setHeadcount] = useState(1);
   const [date, setDate] = useState(getToday());
@@ -282,7 +283,6 @@ export default function ReserveV2() {
 
   /* 예약 확인 패널 */
   const [lookupOpen, setLookupOpen] = useState(false);
-  const [lkName, setLkName] = useState("");
   const [lkRoom, setLkRoom] = useState("");
   const [lkResults, setLkResults] = useState(null);
   const [lkLoading, setLkLoading] = useState(false);
@@ -319,11 +319,10 @@ export default function ReserveV2() {
     return { remaining, closed: remaining <= 0 || remaining < headcount };
   };
 
-  /* ── 성함+객실+날짜 입력 시 중복 예약 확인 (셋 다 일치할 때만 중복, 디바운스) ── */
+  /* ── 객실+날짜 입력 시 중복 예약 확인 (같은 날짜+객실이면 중복, 디바운스) ── */
   useEffect(() => {
     const r = room.trim();
-    const n = name.trim();
-    if (!apiUrl || !r || !n || !date) {
+    if (!apiUrl || !r || !date) {
       setDupState("idle");
       return;
     }
@@ -332,7 +331,6 @@ export default function ReserveV2() {
       try {
         const params = new URLSearchParams({
           action: "checkDuplicate",
-          name: n,
           room: r,
           date,
           site: SITE_LABEL,
@@ -345,10 +343,9 @@ export default function ReserveV2() {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [apiUrl, name, room, date]);
+  }, [apiUrl, room, date]);
 
   const canNext1 =
-    name.trim() &&
     room.trim() &&
     headcount >= 1 &&
     date &&
@@ -368,7 +365,6 @@ export default function ReserveV2() {
           action: "addReservation",
           source: "",
           site: SITE_LABEL,
-          name: name.trim(),
           room: room.trim(),
           date,
           timeSlot: selectedSlot.label, // 시트 저장은 한글 라벨
@@ -398,14 +394,13 @@ export default function ReserveV2() {
   };
 
   const runLookup = async () => {
-    if (!lkName.trim() || !lkRoom.trim()) return;
+    if (!lkRoom.trim()) return;
     setLkLoading(true);
     setLkResults(null);
     setLkMsg("");
     try {
       const params = new URLSearchParams({
         action: "lookup",
-        name: lkName.trim(),
         room: lkRoom.trim(),
       });
       const resp = await fetch(`${apiUrl}?${params.toString()}`);
@@ -429,7 +424,6 @@ export default function ReserveV2() {
         body: JSON.stringify({
           action: "cancelReservation",
           rowIndex: r.rowIndex,
-          name: lkName.trim(),
           room: lkRoom.trim(),
         }),
       });
@@ -470,15 +464,6 @@ export default function ReserveV2() {
         <h2 className="rsv-q">{t.lookupTitle}</h2>
         <p className="rsv-confirm-note">{t.lookupDesc}</p>
         <div className="rsv-field">
-          <label className="rsv-label">{t.fName}</label>
-          <input
-            className="rsv-input"
-            value={lkName}
-            onChange={(e) => setLkName(e.target.value)}
-            placeholder={t.phName}
-          />
-        </div>
-        <div className="rsv-field">
           <label className="rsv-label">{t.fRoom}</label>
           <input
             className="rsv-input"
@@ -486,12 +471,13 @@ export default function ReserveV2() {
             onChange={(e) => setLkRoom(e.target.value)}
             placeholder={t.phRoom}
             onKeyDown={(e) => e.key === "Enter" && runLookup()}
+            autoFocus
           />
         </div>
         <button
           className="rsv-btn rsv-btn-primary"
           onClick={runLookup}
-          disabled={lkLoading || !lkName.trim() || !lkRoom.trim()}
+          disabled={lkLoading || !lkRoom.trim()}
         >
           {lkLoading ? t.lookupSearching : t.lookupSearch}
         </button>
@@ -556,7 +542,6 @@ export default function ReserveV2() {
           <div className="rsv-done-icon">✅</div>
           <h2>{t.doneTitle}</h2>
           <div className="rsv-summary">
-            <Row label={t.rName} value={name} />
             <Row label={t.rRoom} value={room} />
             <Row label={t.rDate} value={date} />
             <Row label={t.rSlot} value={slotDisplay(selectedSlot)} />
@@ -674,21 +659,13 @@ export default function ReserveV2() {
       {/* ── STEP 1: 예약 신청 ── */}
       {step === 1 && (
         <div className="rsv-card">
-          <Field label={t.fName}>
-            <input
-              className="rsv-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t.phName}
-            />
-          </Field>
-
           <Field label={t.fRoom}>
             <input
               className="rsv-input"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
               placeholder={t.phRoom}
+              autoFocus
             />
             <p className="rsv-note">{t.roomHint}</p>
             {dupState === "checking" && (
@@ -771,7 +748,6 @@ export default function ReserveV2() {
         <div className="rsv-card">
           <h2 className="rsv-q">{t.confirmTitle}</h2>
           <div className="rsv-summary">
-            <Row label={t.rName} value={name} />
             <Row label={t.rRoom} value={room} />
             <Row label={t.rDate} value={date} />
             <Row label={t.rSlot} value={slotDisplay(selectedSlot)} />

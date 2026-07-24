@@ -62,7 +62,8 @@ function shiftDate(dateStr, delta) {
 
 /* 고객 식별 키 (POS 확인 기준과 동일: 시설 + 객실 + 성함) */
 function guestKey(r) {
-  return `${r.site || "휘닉스"}|${normalizeRoom(r.room)}|${String(r.name || "").trim()}`;
+  // 예약 사이트가 이름을 저장하지 않으므로 시설+객실로 고객을 식별
+  return `${r.site || "휘닉스"}|${normalizeRoom(r.room)}`;
 }
 
 /* ── 영타 → 한글 변환 (두벌식) : "rla" → "김" ──
@@ -682,9 +683,9 @@ function ReservationCard({ r, onUpdate, prevInfo }) {
         role="button"
         tabIndex={0}
       >
-        {/* 상단: 예약자 성함(우선) + 시간부 */}
+        {/* 상단: 객실 호수(우선) + 시간부 */}
         <div className="card-top">
-          <div className="name-lead">{r.name || "(성함 없음)"}</div>
+          <div className="name-lead">{r.room || "(객실 미입력)"}</div>
           {r.site === "플캠" && <span className="site-chip">플캠</span>}
           {hasLateCheckout(r) && (
             <span
@@ -716,16 +717,18 @@ function ReservationCard({ r, onUpdate, prevInfo }) {
           </div>
         </div>
 
-        {/* 예약 정보: 객실 + 인원 */}
+        {/* 예약 정보: 인원 (+ 과거 데이터에 성함이 있으면 표시) */}
         <div className="card-body">
-          <div>
-            <div className="field-label">객실 호수</div>
-            <div className="field-value field-value-lg">{r.room}</div>
-          </div>
           {r.headcount ? (
             <div>
               <div className="field-label">입장 인원</div>
               <div className="field-value field-value-lg">{r.headcount}명</div>
+            </div>
+          ) : null}
+          {r.name ? (
+            <div>
+              <div className="field-label">예약자(과거)</div>
+              <div className="field-value">{r.name}</div>
             </div>
           ) : null}
         </div>
