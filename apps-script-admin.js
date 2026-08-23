@@ -101,9 +101,18 @@ function authError() {
   return createJsonResponse({ error: "인증이 필요합니다.", unauthorized: true });
 }
 
+// 이 코드의 배포 버전 표식 — 재배포 여부 확인용. 코드 바꿀 때마다 날짜를 올리세요.
+const CODE_VERSION = "2026-08-24-clearAll";
+
 // ---------- GET (모두 토큰 필수) ----------
 function doGet(e) {
   try {
+    // 배포 버전 확인용 핑 (토큰 불필요) — 브라우저에서 URL?action=ping 으로 열어
+    // 이 버전 표식이 보이면 그 URL이 '이 코드'를 실행 중인 것입니다.
+    if ((e.parameter.action || "").trim() === "ping") {
+      return createJsonResponse({ ok: true, version: CODE_VERSION });
+    }
+
     if (!authOk(e.parameter.token)) return authError();
 
     const action = (e.parameter.action || "").trim();
