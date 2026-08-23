@@ -958,6 +958,27 @@ export default function App() {
           </button>
           <button
             className="settings-btn"
+            title="앱이 호출하는 Apps Script 주소를 보거나 변경합니다"
+            onClick={() => {
+              const cur = getSavedUrl();
+              const fromEnv = import.meta.env.VITE_ADMIN_API_URL;
+              const next = window.prompt(
+                (fromEnv
+                  ? "⚠️ 현재 주소는 Vercel 환경변수(VITE_ADMIN_API_URL)로 고정되어 있어\n여기서 바꿔도 적용되지 않습니다. Vercel에서 변경하세요.\n\n"
+                  : "최신 배포의 /exec 주소를 붙여넣으세요.\n(브라우저에서 그 주소 뒤에 ?action=ping 을 붙여 열면\n \"version\":\"...clearAll\" 이 보이는 주소가 최신입니다.)\n\n") +
+                  "현재 백엔드 주소:",
+                cur
+              );
+              if (next && next.trim() && next.trim() !== cur) {
+                saveUrl(next.trim());
+                window.location.reload();
+              }
+            }}
+          >
+            🔗 서버 주소
+          </button>
+          <button
+            className="settings-btn"
             onClick={() => {
               if (window.confirm("로그아웃하시겠습니까? (토큰이 삭제됩니다)")) {
                 clearAdminToken();
