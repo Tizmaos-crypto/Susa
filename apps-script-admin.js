@@ -72,7 +72,7 @@ function rowToObj(row, idx) {
     date:      row[3] ? formatDate(row[3]) : "",
     timeSlot:  row[4] ? String(row[4]).trim() : "",
     headcount: parseHeadcount(row[5]),
-    lateCheckout: row[6] ? String(row[6]).trim() : "",
+    freeLimit: parseHeadcount(row[6]), // G열: 객실 무료 인원 한도 (4 또는 6, 비수기)
     source:    row[7] ? String(row[7]).trim() : "",
     locker:    row[8] ? String(row[8]).trim() : "",
     memo:      row[9] ? String(row[9]).trim() : "",
@@ -213,7 +213,7 @@ function doPost(e) {
       const date      = String(body.date  || "").trim();
       const timeSlot  = String(body.timeSlot || "").trim();
       const headcount = parseHeadcount(body.headcount);
-      const lateCheckout = String(body.lateCheckout || "").trim();
+      const freeLimit = parseHeadcount(body.freeLimit); // G열: 객실 무료 인원 한도
       const source    = String(body.source || "").trim();
       const site      = String(body.site   || "").trim();
       const locker    = String(body.locker || "").trim();
@@ -222,9 +222,16 @@ function doPost(e) {
       const assignedAt = locker ? new Date() : "";
       sheet.appendRow([
         new Date(), name, room, date, timeSlot,
-        headcount || "", lateCheckout, source, locker, memo, assignedAt, "", site,
+        headcount || "", freeLimit || "", source, locker, memo, assignedAt, "", site,
       ]);
       return createJsonResponse({ success: true, rowIndex: sheet.getLastRow() });
+    }
+
+    // ---------- 전체 초기화 (당일 데이터 일괄 삭제) ----------
+    if (body.action === "clearAll") {
+      const last = sheet.getLastRow();
+      if (last >= 2) sheet.deleteRows(2, last - 1); // 2행부터 끝까지 삭제(헤더 보존)
+      return createJsonResponse({ success: true, cleared: Math.max(0, last - 1) });
     }
 
     return createJsonResponse({ error: "지원하지 않는 요청입니다." });

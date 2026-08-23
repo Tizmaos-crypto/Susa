@@ -54,17 +54,6 @@ function fixRoomInput(s) {
     .toUpperCase();
 }
 
-/* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
-const SLOT_END_MIN = { "1부": 13 * 60, "2부": 15 * 60 + 30, "3부": 18 * 60, "4부": 21 * 60 };
-function getCurrentSlot() {
-  const d = new Date();
-  const mins = d.getHours() * 60 + d.getMinutes();
-  for (const key of Object.keys(TIME_SLOTS)) {
-    if (mins <= SLOT_END_MIN[key]) return key;
-  }
-  return Object.keys(TIME_SLOTS).slice(-1)[0]; // 영업 종료 후엔 마지막 부
-}
-
 /* ── 락커 직렬화 (F열에 "남12, 여15" 형식으로 저장) ── */
 function parseLockers(raw) {
   if (!raw) return [];
@@ -291,11 +280,10 @@ function matchKeyQuery(query, item) {
 /* ================================================================
    현장 고객 등록 폼
    ================================================================ */
-function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
+function RegisterForm({ onSubmit, dayReservations }) {
   const [room, setRoom] = useState("");
-  const [date, setDate] = useState(defaultDate);
-  const [timeSlot, setTimeSlot] = useState(getCurrentSlot);
-  const [headcount, setHeadcount] = useState("1"); // 기본 1명 (비면 잔여 카운트에 0으로 잡히므로 필수)
+  const [headcount, setHeadcount] = useState("1");
+  const [freeLimit, setFreeLimit] = useState(""); // "4" | "6" (첫 입장 시 선택)
   const [tokens, setTokens] = useState([""]); // 약식 락커 입력 칸들
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -304,9 +292,8 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
   const roomRef = useRef(null);
   const lockerFirstRef = useRef(null); // 객실에서 Tab → 락커 첫 칸 바로 이동
   const composingRef = useRef(false); // 한글 IME 조합 중 여부 (조합 중 변환 금지)
-  const canSubmit = room.trim() && parseInt(headcount, 10) >= 1 && !saving;
 
-  /* 유효한 락커 수만큼 입장 인원 자동 반영 (락커 없이 등록하는 경우는 기본 1 유지) */
+  /* 유효한 락커 수만큼 입장 인원 자동 반영 */
   useEffect(() => {
     const n = tokens.filter((t) => {
       const p = parseShorthand(t);
@@ -315,37 +302,49 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
     if (n >= 1) setHeadcount(String(n));
   }, [tokens]);
 
-  /* 입력한 객실이 오늘 이미 예약/입장했는지 (추가 입장·다른 부 재입장 판별용) */
+  /* 오늘 이 객실의 이전 입장 기록 (무료 인원 초과 판정용) */
   const roomKey = normalizeRoom(room);
   const roomInfo = roomKey
     ? (dayReservations || []).filter((r) => normalizeRoom(r.room) === roomKey)
     : [];
-  const roomTotal = roomInfo.reduce((sum, r) => sum + (Number(r.headcount) || 0), 0);
+  const hasPrior = roomInfo.length > 0;
+  const priorTotal = roomInfo.reduce((sum, r) => sum + (Number(r.headcount) || 0), 0);
+  const inheritedLimit = hasPrior
+    ? Number(roomInfo.map((r) => Number(r.freeLimit)).find((v) => v > 0) || 0)
+    : 0;
+  const effectiveLimit = hasPrior ? inheritedLimit : Number(freeLimit) || 0;
+
+  const addN = parseInt(headcount, 10) || 0;
+  const newTotal = priorTotal + addN;
+  const paidBefore = effectiveLimit ? Math.max(0, priorTotal - effectiveLimit) : 0;
+  const paidAfter = effectiveLimit ? Math.max(0, newTotal - effectiveLimit) : 0;
+  const paidThisBatch = paidAfter - paidBefore;
+  const freeRemaining = Math.max(0, effectiveLimit - newTotal);
+
+  // 첫 입장이면 무료 한도 선택 필수
+  const canSubmit =
+    room.trim() && addN >= 1 && (hasPrior || Number(freeLimit) > 0) && !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSaving(true);
     const label = room.trim();
     const ok = await onSubmit({
-      name: "",
       room: label,
-      date,
-      timeSlot,
-      headcount: headcount.trim(),
+      headcount: String(addN),
+      freeLimit: String(effectiveLimit),
       locker: tokensToLocker(tokens),
       memo: memo.trim(),
     });
     setSaving(false);
     if (ok) {
-      // 연속 등록 편의: 날짜·시간부는 유지하고 나머지만 초기화
       setRoom("");
       setHeadcount("1");
+      setFreeLimit("");
       setTokens([""]);
       setMemo("");
-      setTimeSlot(getCurrentSlot()); // 시간 흐름 반영
-      setSavedMsg(`✓ ${label} 등록 완료`);
+      setSavedMsg(`✓ ${label} ${addN}명 입장 등록`);
       setTimeout(() => setSavedMsg(""), 2500);
-      // 다음 고객을 위해 객실 칸으로 포커스 복귀
       setTimeout(() => roomRef.current && roomRef.current.focus(), 0);
     }
   };
@@ -355,12 +354,12 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
       <div className="register-head">
         <span className="register-icon">🚶</span>
         <div>
-          <h2>현장 고객 등록</h2>
-          <p>객실 → Tab → 락커 → Enter. 인원은 락커 수만큼 자동 반영됩니다.</p>
+          <h2>현장 입장 등록</h2>
+          <p>객실 입력 시 오늘 이전 입장 기록과 무료 한도 초과 여부를 알려드립니다.</p>
         </div>
       </div>
 
-      {/* 객실 + 입장 인원 (인원은 잔여 카운트에 반영되므로 필수) */}
+      {/* 객실 + 입장 인원 */}
       <div className="register-grid">
         <div>
           <label className="label">객실 호수 *</label>
@@ -378,14 +377,6 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
                 composingRef.current ? e.target.value : fixRoomInput(e.target.value)
               )
             }
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSubmit();
-              else if (e.key === "Tab" && !e.shiftKey) {
-                // 인원 칸 건너뛰고 락커로 (인원은 락커 수 자동 반영)
-                e.preventDefault();
-                if (lockerFirstRef.current) lockerFirstRef.current.focus();
-              }
-            }}
             placeholder="예: A102 (ㅁ102도 인식)"
             autoFocus
           />
@@ -400,32 +391,66 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
             value={headcount}
             onChange={(e) => setHeadcount(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            placeholder="예: 2"
           />
         </div>
       </div>
 
-      {/* 이미 등록된 객실 안내 (추가 입장 / 다른 부 재입장 판별) */}
-      {roomInfo.length > 0 && (
+      {/* 무료 인원 한도: 첫 입장이면 선택, 재입장이면 기존값 표시 */}
+      <div style={{ marginTop: 14 }}>
+        <label className="label">객실 무료 인원</label>
+        {hasPrior ? (
+          <div className="free-limit-fixed">
+            {inheritedLimit > 0
+              ? `${inheritedLimit}인 무료 (오늘 첫 등록 시 설정됨)`
+              : "설정 안 됨"}
+          </div>
+        ) : (
+          <div className="free-limit-pick">
+            {[4, 6].map((v) => (
+              <button
+                key={v}
+                type="button"
+                className={`free-limit-btn ${Number(freeLimit) === v ? "active" : ""}`}
+                onClick={() => setFreeLimit(String(v))}
+              >
+                {v}인 무료
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 이전 입장 기록 (오늘) */}
+      {hasPrior && (
         <div className="room-history">
           <div className="room-history-title">
-            ⚠️ 이 객실은 오늘 이미 {roomInfo.length}건 등록됨 · 총 {roomTotal}명
+            📋 오늘 이 객실 입장 기록 — {roomInfo.length}건 · 누적 {priorTotal}명
           </div>
           {roomInfo.map((r, i) => (
             <div key={i} className="room-history-row">
-              <span
-                className={`src-badge ${r.source === "현장" ? "src-onsite" : "src-form"}`}
-              >
-                {r.source === "현장" ? "현장" : "폼예약"}
-              </span>
-              <span className="rh-slot">{matchSlot(r.timeSlot) || "—"}</span>
               <span className="rh-head">{r.headcount ? `${r.headcount}명` : "—"}</span>
               {r.locker ? <span className="rh-locker">🔐 {r.locker}</span> : null}
+              {r.memo ? <span className="rh-memo">{r.memo}</span> : null}
             </div>
           ))}
-          <div className="room-history-hint">
-            추가 입장인지 · 다른 부 재입장인지 확인하세요 (객실 정원 초과 시 최대 2인 추가 결제)
+        </div>
+      )}
+
+      {/* 무료 한도 대비 유료 판정 (주력) */}
+      {effectiveLimit > 0 && addN >= 1 && (
+        <div className={`charge-box ${paidThisBatch > 0 ? "warn" : "ok"}`}>
+          <div className="charge-line">
+            누적 입장 <b>{newTotal}명</b> · 무료 한도 <b>{effectiveLimit}인</b>
+            {hasPrior && <span className="charge-prev"> (기존 {priorTotal}명 + 이번 {addN}명)</span>}
           </div>
+          {paidThisBatch > 0 ? (
+            <div className="charge-alert">
+              🎟️ 이번 등록 중 <b>{paidThisBatch}명 입장권 구매 필요</b>
+              {paidBefore > 0 && ` (이전까지 유료 ${paidBefore}명)`}
+            </div>
+          ) : (
+            <div className="charge-ok">✅ 전원 무료 입장 · 남은 무료 {freeRemaining}명</div>
+          )}
         </div>
       )}
 
@@ -437,33 +462,6 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
           onEnter={handleSubmit}
           firstInputRef={lockerFirstRef}
         />
-      </div>
-
-      {/* 날짜 · 시간부 */}
-      <div className="register-grid" style={{ marginTop: 18 }}>
-        <div>
-          <label className="label">예약일</label>
-          <input
-            type="date"
-            className="input"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">이용 시간(부)</label>
-          <select
-            className="input"
-            value={timeSlot}
-            onChange={(e) => setTimeSlot(e.target.value)}
-          >
-            {Object.entries(TIME_SLOTS).map(([key, time]) => (
-              <option key={key} value={key}>
-                {key} ({time})
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <div className="memo-row" style={{ marginTop: 14 }}>
@@ -482,8 +480,11 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
         disabled={!canSubmit}
         onClick={handleSubmit}
       >
-        {saving ? "등록중…" : "＋ 고객 등록 (Enter)"}
+        {saving ? "등록중…" : "＋ 입장 등록 (Enter)"}
       </button>
+      {!hasPrior && room.trim() && !Number(freeLimit) && (
+        <div className="register-hint-warn">첫 입장입니다 — 객실 무료 인원(4/6)을 선택해주세요.</div>
+      )}
 
       {savedMsg && <div className="register-saved">{savedMsg}</div>}
     </div>
@@ -587,69 +588,25 @@ function LockerMemoEditor({ r, onSave }) {
 }
 
 /* ================================================================
-   부별 실시간 예약 현황판 (오른쪽 고정, 스크롤 따라옴)
+   오늘 입장객 현황판 (누적 입장 인원 카운터)
    ================================================================ */
-function SlotStatusPanel({ totals, capacity = 180, date, onDateChange }) {
-  const nowSlot = getCurrentSlot(); // 지금 접수 기준 부 (현장 등록 자동 선택과 동일)
-  const [showPicker, setShowPicker] = useState(false);
-  const isToday = !date || date === getToday();
+function DailyEntryPanel({ total, rooms, paid }) {
   return (
     <aside className="slot-aside">
-      <div className="slot-aside-title">
-        <span>🏊 부별 예약 인원</span>
-        {onDateChange && (
-          <button
-            className="slot-aside-cal"
-            onClick={() => setShowPicker((v) => !v)}
-            title="날짜 선택"
-          >
-            📅
-          </button>
+      <div className="slot-aside-title">🏊 오늘 입장 현황</div>
+      <div className="entry-big">
+        {total}
+        <span className="entry-unit">명</span>
+      </div>
+      <div className="entry-subs">
+        <div className="entry-sub">
+          <b>{rooms}</b> 객실 입장
+        </div>
+        {paid > 0 && (
+          <div className="entry-sub entry-paid">🎟️ 유료 {paid}명</div>
         )}
       </div>
-      {onDateChange && (
-        <>
-          <div className={`slot-aside-date ${isToday ? "" : "other"}`}>
-            {isToday ? `오늘 · ${date}` : date}
-          </div>
-          {showPicker && (
-            <input
-              type="date"
-              className="input slot-aside-input"
-              value={date}
-              onChange={(e) => onDateChange(e.target.value)}
-            />
-          )}
-        </>
-      )}
-      {Object.entries(TIME_SLOTS).map(([k, time]) => {
-        const n = totals[k] || 0;
-        const pct = Math.min(100, Math.round((n / capacity) * 100));
-        const full = n >= capacity;
-        const isNow = isToday && k === nowSlot; // "현재"는 오늘일 때만
-        return (
-          <div
-            key={k}
-            className={`slot-aside-row ${full ? "full" : ""} ${isNow ? "now" : ""}`}
-          >
-            <div className="slot-aside-head">
-              <span className="slot-aside-name">
-                {k}
-                {isNow && <span className="now-chip">현재</span>}
-              </span>
-              <span className="slot-aside-count">
-                {n}
-                <i>/{capacity}</i>
-              </span>
-            </div>
-            <div className="slot-aside-time">{time}</div>
-            <div className="slot-aside-bar">
-              <div className="slot-aside-fill" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
-        );
-      })}
-      <div className="slot-aside-foot">⟳ 15초마다 자동 갱신</div>
+      <div className="slot-aside-foot">⟳ 15초마다 자동 갱신 · 오늘 기록 기준</div>
     </aside>
   );
 }
@@ -661,7 +618,7 @@ export default function App() {
   const [apiUrl, setApiUrl] = useState(getSavedUrl);
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(getToday());
+  const [selectedDate] = useState(getToday());
   const [tab, setTab] = useState("register"); // register | lockers
   const [keyQuery, setKeyQuery] = useState(""); // 락커 현황 키 검색
   const [leftRooms, setLeftRooms] = useState(() => new Set()); // 일행 잔류 강조 객실
@@ -789,16 +746,23 @@ export default function App() {
     }
   };
 
-  /* ── 현장 고객 등록 ── */
+  /* ── 현장 입장 등록 (당일만 기록) ── */
   const handleAddReservation = async (data) => {
+    const today = getToday();
     try {
       await fetch(apiUrl, {
         method: "POST",
-        body: JSON.stringify({ action: "addReservation", token: getAdminToken(), source: "현장", site: "휘닉스", ...data }),
+        body: JSON.stringify({
+          action: "addReservation",
+          token: getAdminToken(),
+          source: "현장",
+          site: "휘닉스",
+          date: today, // 당일만 기록 (예약일 필드 제거)
+          timeSlot: "", // 부 개념 없음
+          ...data,
+        }),
       });
-      // 등록 탭에 머문 채 목록만 갱신 (하루치 전체 — 검색어와 무관하게)
-      setSelectedDate(data.date);
-      fetchData("", "", data.date);
+      fetchData("", "", today);
       return true;
     } catch {
       alert("등록 실패 — 네트워크를 확인해주세요.");
@@ -951,13 +915,48 @@ export default function App() {
     return item.r.assignedAt ? label : `${label} (등록 시각 기준)`;
   }
 
-  /* ── 부별 예약 인원 (현장 등록 현황판용, 취소 제외) ── */
-  const slotTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
-  reservations.forEach((r) => {
-    if (r.canceledAt) return;
-    const s = matchSlot(r.timeSlot);
-    if (s in slotTotals) slotTotals[s] += Number(r.headcount) || 0;
+  /* ── 오늘 입장 현황 집계 (누적 입장객 · 객실 수 · 유료 인원) ── */
+  const active = reservations.filter((r) => !r.canceledAt);
+  const dailyTotal = active.reduce((sum, r) => sum + (Number(r.headcount) || 0), 0);
+  const roomAgg = {}; // 객실별 누적 인원·무료한도 (유료 인원 계산용)
+  active.forEach((r) => {
+    const k = normalizeRoom(r.room);
+    if (!k) return;
+    if (!roomAgg[k]) roomAgg[k] = { total: 0, limit: 0 };
+    roomAgg[k].total += Number(r.headcount) || 0;
+    const lim = Number(r.freeLimit) || 0;
+    if (lim > roomAgg[k].limit) roomAgg[k].limit = lim;
   });
+  const dailyRooms = Object.keys(roomAgg).length;
+  const dailyPaid = Object.values(roomAgg).reduce(
+    (sum, v) => sum + (v.limit ? Math.max(0, v.total - v.limit) : 0),
+    0
+  );
+
+  /* ── 오늘 데이터 전체 초기화 ── */
+  const handleClearAll = async () => {
+    if (
+      !window.confirm(
+        "오늘 입장 기록을 전부 삭제할까요?\n\n되돌릴 수 없습니다. (다음 영업일 시작 전 초기화용)"
+      )
+    )
+      return;
+    mutationCount.current += 1;
+    try {
+      await fetch(apiUrl, {
+        method: "POST",
+        body: JSON.stringify({ action: "clearAll", token: getAdminToken() }),
+      });
+      setReservations([]);
+      setSelected(new Set());
+      setLeftRooms(new Set());
+    } catch {
+      alert("초기화 실패 — 네트워크를 확인해주세요.");
+    } finally {
+      mutationCount.current -= 1;
+      lastMutationAt.current = Date.now();
+    }
+  };
 
   /* ── Setup ── */
   if (!apiUrl) return <SetupScreen onSave={saveUrl} />;
@@ -967,23 +966,28 @@ export default function App() {
       {/* ── Header ── */}
       <header className="header">
         <div className="header-left">
-          <span className="logo">🏨</span>
+          <span className="logo">🏊</span>
           <div>
-            <h1>예약 · 락커 관리</h1>
-            <div className="sub">프론트 데스크</div>
+            <h1>입장 · 락커 관리</h1>
+            <div className="sub">프론트 데스크 · 오늘 {dailyTotal}명 입장</div>
           </div>
         </div>
-        <button
-          className="settings-btn"
-          onClick={() => {
-            if (window.confirm("로그아웃하시겠습니까? (토큰이 삭제됩니다)")) {
-              clearAdminToken();
-              window.location.reload();
-            }
-          }}
-        >
-          ⚙ 로그아웃
-        </button>
+        <div className="header-actions">
+          <button className="btn btn-danger reset-btn" onClick={handleClearAll}>
+            🗑 오늘 데이터 초기화
+          </button>
+          <button
+            className="settings-btn"
+            onClick={() => {
+              if (window.confirm("로그아웃하시겠습니까? (토큰이 삭제됩니다)")) {
+                clearAdminToken();
+                window.location.reload();
+              }
+            }}
+          >
+            ⚙ 로그아웃
+          </button>
+        </div>
       </header>
 
       {/* ── Tabs ── */}
@@ -1241,12 +1245,11 @@ export default function App() {
         <div className="content content-flex">
           <div className="main-col">
             <RegisterForm
-              defaultDate={getToday()}
               onSubmit={handleAddReservation}
               dayReservations={reservations}
             />
           </div>
-          <SlotStatusPanel totals={slotTotals} />
+          <DailyEntryPanel total={dailyTotal} rooms={dailyRooms} paid={dailyPaid} />
         </div>
       )}
     </div>

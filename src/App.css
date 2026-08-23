@@ -48,6 +48,132 @@
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.reset-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+/* ── 오늘 입장객 카운터 패널 ── */
+.entry-big {
+  font-size: 54px;
+  font-weight: 800;
+  color: var(--accent-light);
+  line-height: 1.05;
+  text-align: center;
+  margin: 8px 0 4px;
+}
+.entry-unit {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+.entry-subs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.entry-sub {
+  font-size: 14px;
+  color: var(--text);
+}
+.entry-sub b {
+  font-weight: 800;
+}
+.entry-paid {
+  color: #fbbf24;
+  font-weight: 800;
+}
+
+/* ── 무료 인원 한도 선택 ── */
+.free-limit-pick {
+  display: flex;
+  gap: 10px;
+}
+.free-limit-btn {
+  flex: 1;
+  padding: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.free-limit-btn.active {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent-light);
+}
+.free-limit-fixed {
+  padding: 11px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* ── 무료 한도 대비 유료 판정 박스 ── */
+.charge-box {
+  margin-top: 14px;
+  border-radius: 12px;
+  padding: 13px 15px;
+  border: 1.5px solid var(--border);
+}
+.charge-box.ok {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.35);
+}
+.charge-box.warn {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #ef4444;
+}
+.charge-line {
+  font-size: 14px;
+  color: var(--text);
+}
+.charge-line b {
+  font-weight: 800;
+}
+.charge-prev {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.charge-alert {
+  margin-top: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #fca5a5;
+}
+.charge-alert b {
+  color: #ef4444;
+}
+.charge-ok {
+  margin-top: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #86efac;
+}
+.register-hint-warn {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #fbbf24;
+  text-align: center;
+}
+.rh-memo {
+  color: var(--text-muted);
+  font-size: 13px;
+}
 .header-left {
   display: flex;
   align-items: center;
