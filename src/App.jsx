@@ -919,11 +919,11 @@ export default function App() {
       const json = await resp.json().catch(() => ({}));
       if (!checkAuth(json)) return;
       if (json.error) {
-        // 백엔드가 clearAll을 모르면(재배포 안 됨) 여기로 옴
-        alert(
-          `초기화 실패 — 서버 응답: ${json.error}\n\n` +
-            "직원용 Apps Script를 최신 코드로 '새 버전' 재배포했는지 확인해주세요."
-        );
+        const hint =
+          json.error.indexOf("지원하지 않는") >= 0
+            ? "\n\n→ 배포된 버전이 옛 코드입니다. Apps Script에서 '배포 관리 → 편집 → 새 버전 → 배포'로 재배포하세요."
+            : "";
+        alert(`초기화 실패\n\n서버 응답: 「${json.error}」${hint}`);
         return;
       }
       setReservations([]);
