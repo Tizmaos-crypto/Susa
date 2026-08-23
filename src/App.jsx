@@ -912,13 +912,24 @@ export default function App() {
       return;
     mutationCount.current += 1;
     try {
-      await fetch(apiUrl, {
+      const resp = await fetch(apiUrl, {
         method: "POST",
         body: JSON.stringify({ action: "clearAll", token: getAdminToken() }),
       });
+      const json = await resp.json().catch(() => ({}));
+      if (!checkAuth(json)) return;
+      if (json.error) {
+        // 백엔드가 clearAll을 모르면(재배포 안 됨) 여기로 옴
+        alert(
+          `초기화 실패 — 서버 응답: ${json.error}\n\n` +
+            "직원용 Apps Script를 최신 코드로 '새 버전' 재배포했는지 확인해주세요."
+        );
+        return;
+      }
       setReservations([]);
       setSelected(new Set());
       setLeftRooms(new Set());
+      alert(`초기화 완료 — ${json.cleared ?? 0}건 삭제되었습니다.`);
     } catch {
       alert("초기화 실패 — 네트워크를 확인해주세요.");
     } finally {
