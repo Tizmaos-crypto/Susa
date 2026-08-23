@@ -1,14 +1,15 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+import AdminGate from "./AdminGate.jsx";
 import "./index.css";
 
-/* ── 빌드 분리 진입점 ──
-   VITE_APP_MODE 는 빌드 시점에 문자열 리터럴로 치환되므로,
-   해당하지 않는 쪽 import 는 번들에서 통째로 제거됩니다.
-   → 공개 배포 번들에는 직원용 코드·주소가 아예 들어가지 않습니다.
-
-   · 공개 배포 (기본)      : VITE_APP_MODE 미설정 또는 "public"
-   · 직원 데스크 배포      : VITE_APP_MODE=admin  (+ VITE_ADMIN_API_URL) */
-if (import.meta.env.VITE_APP_MODE === "admin") {
-  import("./mainAdmin.jsx");
-} else {
-  import("./mainPublic.jsx");
-}
+/* 비시즌: 예약 사이트는 종료되고 직원 데스크만 운영합니다.
+   (현장 등록 + 락커 현황). 토큰 인증은 AdminGate 에서 처리. */
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <AdminGate>
+      <App />
+    </AdminGate>
+  </React.StrictMode>
+);

@@ -15,22 +15,6 @@ function getToday() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function parseDate(str) {
-  if (!str) return "";
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
-  const m = str.match(/(\d{4})[.\-/\s]+(\d{1,2})[.\-/\s]+(\d{1,2})/);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  return str;
-}
-
-/* 접수 시각(타임스탬프)을 "7/10 14:23" 형태로 축약 */
-function formatTimestamp(raw) {
-  if (!raw) return "";
-  const d = new Date(raw);
-  if (isNaN(d)) return String(raw);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
 function matchSlot(raw) {
   if (!raw) return raw;
   for (const key of Object.keys(TIME_SLOTS)) {
@@ -49,118 +33,13 @@ function normalizeRoom(s) {
   return String(s || "").toUpperCase().replace(/\s+/g, "");
 }
 
-/* 투숙 이력 조회 범위 (최대 10박까지 커버) */
-const HISTORY_DAYS = 10;
-
-/* 날짜 이동: shiftDate("2026-07-12", -1) → "2026-07-11" */
-function shiftDate(dateStr, delta) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr || ""));
-  if (!m) return "";
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/* 고객 식별 키 (POS 확인 기준과 동일: 시설 + 객실 + 성함) */
-function guestKey(r) {
-  // 예약 사이트가 이름을 저장하지 않으므로 시설+객실로 고객을 식별
-  return `${r.site || "휘닉스"}|${normalizeRoom(r.room)}`;
-}
-
-/* ── 영타 → 한글 변환 (두벌식) : "rla" → "김" ──
-   바쁠 때 한/영 안 바꾸고 영문으로 친 성함도 검색되게 하기 위함 */
+/* ── 객실 입력 한글 자판 보정용 매핑 (ㅁ→A 등) ── */
 const EN2KO = {
   q: "ㅂ", w: "ㅈ", e: "ㄷ", r: "ㄱ", t: "ㅅ", y: "ㅛ", u: "ㅕ", i: "ㅑ", o: "ㅐ", p: "ㅔ",
   a: "ㅁ", s: "ㄴ", d: "ㅇ", f: "ㄹ", g: "ㅎ", h: "ㅗ", j: "ㅓ", k: "ㅏ", l: "ㅣ",
   z: "ㅋ", x: "ㅌ", c: "ㅊ", v: "ㅍ", b: "ㅠ", n: "ㅜ", m: "ㅡ",
   Q: "ㅃ", W: "ㅉ", E: "ㄸ", R: "ㄲ", T: "ㅆ", O: "ㅒ", P: "ㅖ",
 };
-const KO_CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ".split("");
-const KO_JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ".split("");
-const KO_JONG = ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄵ","ㄶ","ㄷ","ㄹ","ㄺ","ㄻ","ㄼ","ㄽ","ㄾ","ㄿ","ㅀ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
-const KO_VOWELS = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅛㅜㅠㅡㅣ";
-const KO_CONS = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
-const VOWEL_COMBO = {
-  ㅗ: { ㅏ: "ㅘ", ㅐ: "ㅙ", ㅣ: "ㅚ" },
-  ㅜ: { ㅓ: "ㅝ", ㅔ: "ㅞ", ㅣ: "ㅟ" },
-  ㅡ: { ㅣ: "ㅢ" },
-};
-const JONG_COMBO = {
-  ㄱ: { ㅅ: "ㄳ" }, ㄴ: { ㅈ: "ㄵ", ㅎ: "ㄶ" },
-  ㄹ: { ㄱ: "ㄺ", ㅁ: "ㄻ", ㅂ: "ㄼ", ㅅ: "ㄽ", ㅌ: "ㄾ", ㅍ: "ㄿ", ㅎ: "ㅀ" },
-  ㅂ: { ㅅ: "ㅄ" },
-};
-const JONG_SPLIT = {
-  ㄳ: ["ㄱ", "ㅅ"], ㄵ: ["ㄴ", "ㅈ"], ㄶ: ["ㄴ", "ㅎ"], ㄺ: ["ㄹ", "ㄱ"], ㄻ: ["ㄹ", "ㅁ"],
-  ㄼ: ["ㄹ", "ㅂ"], ㄽ: ["ㄹ", "ㅅ"], ㄾ: ["ㄹ", "ㅌ"], ㄿ: ["ㄹ", "ㅍ"], ㅀ: ["ㄹ", "ㅎ"], ㅄ: ["ㅂ", "ㅅ"],
-};
-
-function engToKorean(input) {
-  let out = "";
-  let cur = null; // { cho, jung, jong }
-  const flush = () => {
-    if (!cur) return;
-    if (cur.cho && cur.jung) {
-      const ci = KO_CHO.indexOf(cur.cho);
-      const ji = KO_JUNG.indexOf(cur.jung);
-      const ki = cur.jong ? KO_JONG.indexOf(cur.jong) : 0;
-      if (ci >= 0 && ji >= 0 && ki >= 0) {
-        out += String.fromCharCode(0xac00 + (ci * 21 + ji) * 28 + ki);
-      } else {
-        out += (cur.cho || "") + (cur.jung || "") + (cur.jong || "");
-      }
-    } else {
-      out += (cur.cho || "") + (cur.jung || "") + (cur.jong || "");
-    }
-    cur = null;
-  };
-
-  for (const ch of String(input)) {
-    const j = EN2KO[ch] || EN2KO[ch.toLowerCase()];
-    if (!j) {
-      flush();
-      out += ch;
-      continue;
-    }
-    if (KO_VOWELS.includes(j)) {
-      if (cur && cur.jung) {
-        if (!cur.jong && VOWEL_COMBO[cur.jung] && VOWEL_COMBO[cur.jung][j]) {
-          cur.jung = VOWEL_COMBO[cur.jung][j];
-        } else if (cur.jong) {
-          const split = JONG_SPLIT[cur.jong];
-          const move = split ? split[1] : cur.jong;
-          cur.jong = split ? split[0] : "";
-          flush();
-          cur = { cho: move, jung: j, jong: "" };
-        } else {
-          flush();
-          cur = { cho: "", jung: j, jong: "" };
-        }
-      } else if (cur && cur.cho) {
-        cur.jung = j;
-      } else {
-        flush();
-        cur = { cho: "", jung: j, jong: "" };
-      }
-    } else if (KO_CONS.includes(j)) {
-      if (cur && cur.jung && !cur.jong) {
-        cur.jong = j;
-      } else if (cur && cur.jung && cur.jong) {
-        if (JONG_COMBO[cur.jong] && JONG_COMBO[cur.jong][j]) {
-          cur.jong = JONG_COMBO[cur.jong][j];
-        } else {
-          flush();
-          cur = { cho: j, jung: "", jong: "" };
-        }
-      } else {
-        flush();
-        cur = { cho: j, jung: "", jong: "" };
-      }
-    }
-  }
-  flush();
-  return out;
-}
-
 /* 객실 입력 보정: 한글 자판으로 친 동 접두사를 영문으로 치환
    (ㅁ=A, ㅠ=B, ㅊ=C, ㅔ=P, ㅗ=H 등 — 자모를 해당 키의 영문자로) */
 const KO2EN = Object.entries(EN2KO).reduce((acc, [en, ko]) => {
@@ -175,13 +54,6 @@ function fixRoomInput(s) {
     .toUpperCase();
 }
 
-/* 성함 검색 후보 생성: 원문 + 영타변환 + (CapsLock 대비)소문자 영타변환 */
-function nameQueryCandidates(query) {
-  const q = String(query || "").trim();
-  if (!q) return [];
-  return [...new Set([q, engToKorean(q), engToKorean(q.toLowerCase())].filter(Boolean))];
-}
-
 /* 현재 시각 기준 시간부 자동 선택 (각 부의 종료 시각이 아직 안 지난 첫 부) */
 const SLOT_END_MIN = { "1부": 13 * 60, "2부": 15 * 60 + 30, "3부": 18 * 60, "4부": 21 * 60 };
 function getCurrentSlot() {
@@ -192,11 +64,6 @@ function getCurrentSlot() {
   }
   return Object.keys(TIME_SLOTS).slice(-1)[0]; // 영업 종료 후엔 마지막 부
 }
-
-/* 레이트 체크아웃 적용 표시 (G열 저장값 / 판별)
-   컴플레인 등으로 레이트 체크아웃을 약속한 고객을 직원이 표시해 두는 용도 */
-const LATE_YES = "네, 적용해 주세요.";
-const hasLateCheckout = (r) => String(r.lateCheckout || "").includes("적용");
 
 /* ── 락커 직렬화 (F열에 "남12, 여15" 형식으로 저장) ── */
 function parseLockers(raw) {
@@ -399,11 +266,6 @@ function LockerEditor({ tokens, setTokens, onEnter, firstInputRef }) {
   );
 }
 
-/* 락커 문자열 → 약식 토큰 배열 ("남12, 여23" → ["남12","여23"]) */
-function lockerToTokens(raw) {
-  const arr = parseLockers(raw).map((l) => `${l.gender}${l.number}`);
-  return arr.length ? arr : [""];
-}
 /* 약식 토큰 배열 → 저장용 문자열 */
 function tokensToLocker(tokens) {
   return serializeLockers(tokens.map(parseShorthand).filter((l) => l && l.number.trim()));
@@ -629,206 +491,6 @@ function RegisterForm({ defaultDate, onSubmit, dayReservations }) {
 }
 
 /* ================================================================
-   Reservation Card
-   ================================================================ */
-function ReservationCard({ r, onUpdate, prevInfo }) {
-  const needsCheck = !!(prevInfo && prevInfo.had);
-  const [tokens, setTokens] = useState(() => lockerToTokens(r.locker));
-  const [memo, setMemo] = useState(r.memo || "");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const lockerRef = useRef(null);
-
-  const serialized = tokensToLocker(tokens);
-  const dirty = serialized !== (r.locker || "") || memo !== (r.memo || "");
-
-  // 외부 데이터 변경 시 동기화
-  useEffect(() => {
-    setTokens(lockerToTokens(r.locker));
-    setMemo(r.memo || "");
-  }, [r.locker, r.memo]);
-
-  // 펼칠 때 락커 입력 칸으로 자동 포커스
-  useEffect(() => {
-    if (expanded && lockerRef.current) lockerRef.current.focus();
-  }, [expanded]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    await onUpdate(r.rowIndex, serialized, memo);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
-  };
-
-  const slot = matchSlot(r.timeSlot);
-  const slotTime = TIME_SLOTS[slot] || "";
-  const savedLockers = parseLockers(r.locker);
-
-  const btnClass = saved
-    ? "btn btn-saved"
-    : dirty
-      ? "btn btn-primary"
-      : "btn btn-default";
-
-  return (
-    <div
-      className={`card ${expanded ? "card-expanded" : ""} ${needsCheck ? "card-check" : ""}`}
-    >
-      {/* 요약 (클릭하면 락커·메모 펼침) */}
-      <div
-        className="card-summary"
-        onClick={() => setExpanded((v) => !v)}
-        role="button"
-        tabIndex={0}
-      >
-        {/* 상단: 객실 호수(우선) + 시간부 */}
-        <div className="card-top">
-          <div className="name-lead">{r.room || "(객실 미입력)"}</div>
-          {r.site === "플캠" && <span className="site-chip">플캠</span>}
-          {hasLateCheckout(r) && (
-            <span
-              className="late-badge"
-              title="레이트 체크아웃 적용 대상입니다. 퇴실 시 반드시 적용해 주세요."
-            >
-              🕐 레이트 체크아웃
-            </span>
-          )}
-          {needsCheck && (
-            <span
-              className="check-badge"
-              title="투숙 중 이전 예약 이력이 있는 1부 예약입니다. 몇 박 투숙인지 확인해 잔여 이용 횟수를 따져 주세요."
-            >
-              ⚠️ 확인 필요 · 이전 이용 {prevInfo.usedCount}회
-            </span>
-          )}
-          {prevInfo && !prevInfo.had && (
-            <span
-              className="ok-badge"
-              title="최근 이전 예약 이력이 없는 1부 예약입니다. 미이용 고객이므로 혜택 대상입니다."
-            >
-              ✅ 이전 이용 없음
-            </span>
-          )}
-          <div className="slot-badge">
-            {slot}
-            {slotTime && <span className="time">{slotTime}</span>}
-          </div>
-        </div>
-
-        {/* 예약 정보: 인원 (+ 과거 데이터에 성함이 있으면 표시) */}
-        <div className="card-body">
-          {r.headcount ? (
-            <div>
-              <div className="field-label">입장 인원</div>
-              <div className="field-value field-value-lg">{r.headcount}명</div>
-            </div>
-          ) : null}
-          {r.name ? (
-            <div>
-              <div className="field-label">예약자(과거)</div>
-              <div className="field-value">{r.name}</div>
-            </div>
-          ) : null}
-        </div>
-
-        {/* 하단: 락커 배정 상태 요약 + 펼침 안내 */}
-        <div className="card-summary-foot">
-          {savedLockers.length > 0 ? (
-            <span className="summary-lockers">
-              🔐{" "}
-              {savedLockers.map((l, i) => (
-                <span
-                  key={i}
-                  className={`locker-chip ${l.gender === "남" ? "male" : "female"}`}
-                >
-                  {l.gender} {l.number}
-                </span>
-              ))}
-            </span>
-          ) : (
-            <span className="summary-nolocker">락커 미배정</span>
-          )}
-          <span className="expand-hint">{expanded ? "▲ 접기" : "▼ 락커 · 메모"}</span>
-        </div>
-
-        {hasLateCheckout(r) && (
-          <div className="late-note">
-            🕐 <b>레이트 체크아웃 적용 대상</b>입니다 — 퇴실 시 반드시 적용해 주세요.
-          </div>
-        )}
-
-        {needsCheck && (
-          <div className="check-note">
-            <div className="check-note-line">
-              이전 예약 이력 <b>{prevInfo.items.length}건</b> · 락커 배정 기록{" "}
-              <b className="check-used">{prevInfo.usedCount}회</b> (= 실제 이용 추정)
-            </div>
-            <ul className="check-note-list check-history">
-              {prevInfo.items.map((it, i) => (
-                <li key={i}>
-                  {it.date} <b>{it.slot}</b> —{" "}
-                  {it.used ? (
-                    <b className="check-used">락커 O (이용함)</b>
-                  ) : (
-                    <b className="check-noshow">락커 X (노쇼 가능)</b>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="check-note-line check-note-ask">
-              👉 <b>몇 박 투숙인지 확인해 주세요.</b> (1박당 1회 이용)
-            </div>
-            <ul className="check-note-list">
-              <li>
-                <b>투숙 박수 − 이미 이용한 횟수 = 잔여 횟수.</b> 잔여가 남아 있으면 오늘
-                이용은 정상입니다. (예: 3박인데 2회만 이용 → 1회 남음)
-              </li>
-              <li>
-                <b>오늘 퇴실</b>이고 <b>잔여 횟수가 없다면</b> 퇴실 당일 1부·레이트
-                체크아웃 혜택 대상이 아닙니다.
-              </li>
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* 상세 (펼침) — 락커·메모 입력 */}
-      {expanded && (
-        <div className="card-detail">
-          <LockerEditor
-            tokens={tokens}
-            setTokens={setTokens}
-            onEnter={handleSave}
-            firstInputRef={lockerRef}
-          />
-
-          <div className="memo-row" style={{ marginTop: 12 }}>
-            <label className="label">메모</label>
-            <input
-              className="input"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="비고 사항"
-            />
-          </div>
-
-          <button
-            className={btnClass}
-            style={{ width: "100%", marginTop: 12 }}
-            disabled={saving || !dirty}
-            onClick={handleSave}
-          >
-            {saving ? "저장중…" : saved ? "✓ 완료" : "저장"}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ================================================================
    락커 현황 — 키 번호 인라인 수정
    ================================================================ */
 function EditableLockerNumber({ item, onCommit }) {
@@ -999,34 +661,14 @@ export default function App() {
   const [apiUrl, setApiUrl] = useState(getSavedUrl);
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [searchRoom, setSearchRoom] = useState("");
-  const [searchName, setSearchName] = useState("");
-  const [searchSlot, setSearchSlot] = useState(""); // "" = 전체, "1부"~"4부" = 해당 부만
-  /* 예약자 검색 (전 날짜) — 탭 열 때 한 번만 로드, 필터는 클라이언트 처리 */
-  const [guestName, setGuestName] = useState("");
-  const [guestRoom, setGuestRoom] = useState("");
-  const [allRes, setAllRes] = useState([]);
-  const [allLoading, setAllLoading] = useState(false);
-  const [allError, setAllError] = useState("");
-  const [panelDate, setPanelDate] = useState(getToday()); // 예약자 검색 현황판 조회 날짜
-  const [historyRes, setHistoryRes] = useState([]); // 투숙 기간 이용 이력 (최근 10일)
-  const [historyLoaded, setHistoryLoaded] = useState(false); // 로드 전엔 "없음"으로 오판 방지
-  /* 예약자 검색 편집 상태 */
-  const [editId, setEditId] = useState(null); // 편집 중인 rowIndex
-  const [editDate, setEditDate] = useState("");
-  const [editSlot, setEditSlot] = useState("");
-  const [editLate, setEditLate] = useState(false);
-  const [editSaving, setEditSaving] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getToday());
-  const [tab, setTab] = useState("register");
+  const [tab, setTab] = useState("register"); // register | lockers
   const [keyQuery, setKeyQuery] = useState(""); // 락커 현황 키 검색
   const [leftRooms, setLeftRooms] = useState(() => new Set()); // 일행 잔류 강조 객실
   const [selected, setSelected] = useState(() => new Set()); // 다중 반납 선택
   const fetchId = useRef(0);
   const mutationCount = useRef(0); // 진행 중인 저장/반납 수 (새로고침 경쟁 방지)
   const lastMutationAt = useRef(0); // 마지막 변경 완료 시각 (낡은 응답 폐기 기준)
-  const searchComposingRef = useRef(false); // 객실 검색 한글 IME 조합 중 여부
 
   /* ── API URL 저장 ── */
   const saveUrl = (url) => {
@@ -1034,19 +676,16 @@ export default function App() {
     setApiUrl(url);
   };
 
-  /* ── 예약 조회 ── */
+  /* ── 예약(락커) 데이터 조회 ── */
   const fetchData = useCallback(
     async (room, name, date) => {
       if (!apiUrl) return;
       setLoading(true);
-      setError("");
       const id = ++fetchId.current;
       const startedAt = Date.now();
 
       try {
         const params = new URLSearchParams();
-        if (room) params.set("room", room);
-        if (name) params.set("name", name);
         if (date) params.set("date", date);
 
         const resp = await fetch(`${apiUrl}?${withToken(params).toString()}`);
@@ -1057,19 +696,14 @@ export default function App() {
         // 있으므로 폐기 (반납한 키가 잠깐 되살아나는 현상 방지)
         if (mutationCount.current > 0 || startedAt <= lastMutationAt.current) return;
 
-        if (json.error) {
-          setError(json.error);
-          setReservations([]);
-        } else {
+        if (!json.error) {
           const sorted = (json.reservations || []).sort(
             (a, b) => slotOrder(a.timeSlot) - slotOrder(b.timeSlot)
           );
           setReservations(sorted);
         }
       } catch {
-        if (fetchId.current !== id) return;
-        setError("서버 연결 실패 — Apps Script URL을 확인해주세요.");
-        setReservations([]);
+        /* 조회 실패 시 기존 목록 유지 (자동 새로고침이 다시 시도) */
       } finally {
         if (fetchId.current === id) setLoading(false);
       }
@@ -1082,64 +716,6 @@ export default function App() {
     if (apiUrl) fetchData("", "", selectedDate);
   }, [apiUrl]); // eslint-disable-line
 
-  /* ── 투숙 기간 이용 이력 로드 (퇴실 당일 1부 예외 혜택 판정용)
-        1박당 1회이므로 여러 날 투숙 시 잔여 횟수 계산이 필요 → 최근 10일치를 한 번에 조회.
-        과거 데이터는 거의 변하지 않으므로 날짜가 바뀔 때만 1회 조회 (폴링 없음) ── */
-  useEffect(() => {
-    if (!apiUrl || !selectedDate) return;
-    const from = shiftDate(selectedDate, -HISTORY_DAYS);
-    const to = shiftDate(selectedDate, -1);
-    if (!from || !to) return;
-    let aborted = false;
-    setHistoryLoaded(false);
-    (async () => {
-      try {
-        const params = withToken(
-          new URLSearchParams({ action: "range", from, to })
-        );
-        const resp = await fetch(`${apiUrl}?${params.toString()}`);
-        const json = await resp.json();
-        if (aborted) return;
-        if (!checkAuth(json)) return;
-        if (!json.error) {
-          setHistoryRes(json.reservations || []);
-          setHistoryLoaded(true);
-        }
-      } catch {
-        /* 실패해도 조회는 정상 동작 (뱃지만 생략) */
-      }
-    })();
-    return () => {
-      aborted = true;
-    };
-  }, [apiUrl, selectedDate]);
-
-  /* ── 예약자 검색: 전 날짜 데이터 로드 (탭 열 때 1회 + 수동 새로고침만, 반복 조회 없음) ── */
-  const fetchAllDates = useCallback(async () => {
-    if (!apiUrl) return;
-    setAllLoading(true);
-    setAllError("");
-    try {
-      // 날짜 필터 없이 전체 (직원 토큰 필요)
-      const resp = await fetch(`${apiUrl}?${withToken(new URLSearchParams()).toString()}`);
-      const json = await resp.json();
-      if (!checkAuth(json)) return;
-      if (json.error) {
-        setAllError(json.error);
-      } else {
-        setAllRes(json.reservations || []);
-      }
-    } catch {
-      setAllError("서버 연결 실패 — 잠시 후 다시 시도해주세요.");
-    } finally {
-      setAllLoading(false);
-    }
-  }, [apiUrl]);
-
-  useEffect(() => {
-    if (tab === "guest") fetchAllDates();
-  }, [tab, fetchAllDates]);
-
   /* ── 자동 새로고침 (모든 탭에서 하루치 전체를 주기적으로 갱신) ── */
   useEffect(() => {
     if (!apiUrl) return;
@@ -1149,9 +725,6 @@ export default function App() {
     }, 15000);
     return () => clearInterval(timer);
   }, [apiUrl, selectedDate, fetchData]);
-
-  /* ── 수동 새로고침 (검색은 타이핑 즉시 클라이언트에서 필터링) ── */
-  const handleRefresh = () => fetchData("", "", selectedDate);
 
   /* ── 락커 저장 (낙관적 업데이트: 즉시 화면 반영, 실패 시 되돌림) ── */
   const handleUpdate = async (rowIndex, locker, memo) => {
@@ -1211,77 +784,6 @@ export default function App() {
       );
       alert("반납 처리 실패 — 네트워크를 확인해주세요.");
     } finally {
-      mutationCount.current -= 1;
-      lastMutationAt.current = Date.now();
-    }
-  };
-
-  /* ── 예약 편집 (날짜·부·레이트 체크아웃) — 예약자 검색 탭 ── */
-  const startEdit = (r) => {
-    setEditId(r.rowIndex);
-    setEditDate(parseDate(r.date));
-    setEditSlot(matchSlot(r.timeSlot) || "1부");
-    setEditLate(hasLateCheckout(r));
-  };
-  const cancelEdit = () => setEditId(null);
-
-  const saveEdit = async (r) => {
-    const fields = {
-      date: editDate,
-      timeSlot: `${editSlot} (${TIME_SLOTS[editSlot]})`,
-      lateCheckout: editLate ? LATE_YES : "",
-    };
-    setEditSaving(true);
-    mutationCount.current += 1;
-    try {
-      await fetch(apiUrl, {
-        method: "POST",
-        body: JSON.stringify({ action: "editReservation", token: getAdminToken(), rowIndex: r.rowIndex, ...fields }),
-      });
-      const patch = (list) =>
-        list.map((x) => (x.rowIndex === r.rowIndex ? { ...x, ...fields } : x));
-      setAllRes(patch);
-      setReservations(patch); // 당일 목록·현황판도 동기화
-      setEditId(null);
-    } catch {
-      alert("수정 실패 — 네트워크를 확인해주세요.");
-    } finally {
-      setEditSaving(false);
-      mutationCount.current -= 1;
-      lastMutationAt.current = Date.now();
-    }
-  };
-
-  /* ── 예약 취소 / 취소 해제 — 예약자 검색 탭 ── */
-  const [cancelingRow, setCancelingRow] = useState(null);
-  const handleCancelReservation = async (r, restore) => {
-    const label = `${parseDate(r.date)} ${matchSlot(r.timeSlot)} · ${r.name || "무명"} (${r.room})`;
-    const msg = restore
-      ? `${label}\n\n취소를 해제하고 예약을 되살릴까요?`
-      : `${label}\n\n이 예약을 취소 처리할까요?\n취소된 예약은 정원에서 제외되고 목록에서 빠집니다.`;
-    if (!window.confirm(msg)) return;
-
-    setCancelingRow(r.rowIndex);
-    mutationCount.current += 1;
-    try {
-      await fetch(apiUrl, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "cancelReservation",
-          token: getAdminToken(),
-          rowIndex: r.rowIndex,
-          restore: !!restore,
-        }),
-      });
-      const canceledAt = restore ? "" : new Date().toString();
-      const patch = (list) =>
-        list.map((x) => (x.rowIndex === r.rowIndex ? { ...x, canceledAt } : x));
-      setAllRes(patch);
-      setReservations(patch); // 당일 목록·현황판도 동기화
-    } catch {
-      alert("취소 처리 실패 — 네트워크를 확인해주세요.");
-    } finally {
-      setCancelingRow(null);
       mutationCount.current -= 1;
       lastMutationAt.current = Date.now();
     }
@@ -1449,94 +951,12 @@ export default function App() {
     return item.r.assignedAt ? label : `${label} (등록 시각 기준)`;
   }
 
-  /* ── 예약 조회: 타이핑 즉시 클라이언트 필터 (하루치 reservations에서 추림) ── */
-  /* 현장 등록(H열 "현장")은 폼 예약 조회 목록에서 제외 */
-  /* 고객이 취소한 예약(N열)은 어디에도 잡히지 않게 전면 제외 */
-  const formReservations = reservations.filter(
-    (r) => r.source !== "현장" && !r.canceledAt
-  );
-  /* 락커가 모두 반납된 예약(returnedAt)은 조회 목록에서 제외 (단, 명단 추출에는 포함) */
-  const activeReservations = formReservations.filter((r) => !r.returnedAt);
-  const nameCands = nameQueryCandidates(searchName); // 한 번만 계산 (행마다 반복 X)
-  const searchResults = activeReservations.filter((r) => {
-    const roomOk =
-      !searchRoom.trim() ||
-      String(r.room).toUpperCase().includes(searchRoom.trim().toUpperCase());
-    const nameOk =
-      nameCands.length === 0 ||
-      nameCands.some((c) => String(r.name).includes(c));
-    const slotOk = !searchSlot || matchSlot(r.timeSlot) === searchSlot;
-    return roomOk && nameOk && slotOk;
-  });
-
-  /* ── 부별 실시간 예약 인원 (선택 날짜 기준, 전체 인원 합산) ── */
+  /* ── 부별 예약 인원 (현장 등록 현황판용, 취소 제외) ── */
   const slotTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
   reservations.forEach((r) => {
-    if (r.canceledAt) return; // 취소 예약은 정원에서 제외
+    if (r.canceledAt) return;
     const s = matchSlot(r.timeSlot);
     if (s in slotTotals) slotTotals[s] += Number(r.headcount) || 0;
-  });
-
-  /* ── 1부 예약의 투숙 중 이용 이력 판정 (퇴실 당일 1부 예외 혜택 검증)
-        1박당 1회이므로 "몇 박 투숙 − 이미 이용한 횟수 = 잔여 횟수"를 따져야 함.
-        시스템은 투숙 박수를 모르므로, 이전 이력을 나열해 직원이 판단하도록 제공.
-        (락커 배정 기록 = 실제 방문 흔적 / 없으면 노쇼 가능성) ── */
-  const historyByGuest = {};
-  historyRes.forEach((r) => {
-    if (r.canceledAt) return;
-    const k = guestKey(r);
-    (historyByGuest[k] = historyByGuest[k] || []).push(r);
-  });
-  const prevInfoFor = (r) => {
-    if (!historyLoaded) return null;
-    if (matchSlot(r.timeSlot) !== "1부") return null;
-    const list = historyByGuest[guestKey(r)];
-    if (!list || list.length === 0) return { had: false };
-    const items = list
-      .slice()
-      .sort((a, b) => parseDate(a.date).localeCompare(parseDate(b.date)))
-      .map((p) => ({
-        date: parseDate(p.date),
-        slot: matchSlot(p.timeSlot) || "—",
-        used: !!(p.locker || p.returnedAt),
-      }));
-    return {
-      had: true,
-      items,
-      usedCount: items.filter((i) => i.used).length, // 락커 기록이 있는 = 실제 이용
-    };
-  };
-
-  /* ── 예약자 검색 (전 날짜): 필터 + 이용일·부·접수순 정렬 ── */
-  const guestNameCands = nameQueryCandidates(guestName);
-  const guestHasQuery = Boolean(guestName.trim() || guestRoom.trim());
-  const guestResults = !guestHasQuery
-    ? []
-    : allRes
-        .filter((r) => {
-          const roomOk =
-            !guestRoom.trim() ||
-            normalizeRoom(r.room).includes(normalizeRoom(guestRoom));
-          const nameOk =
-            guestNameCands.length === 0 ||
-            guestNameCands.some((c) => String(r.name).includes(c));
-          return roomOk && nameOk;
-        })
-        .sort(
-          (a, b) =>
-            parseDate(a.date).localeCompare(parseDate(b.date)) ||
-            slotOrder(a.timeSlot) - slotOrder(b.timeSlot) ||
-            a.rowIndex - b.rowIndex
-        );
-
-  /* ── 예약자 검색 현황판: 선택 날짜(panelDate)의 부별 인원 (전 날짜 데이터에서 집계) ── */
-  const panelTotals = { "1부": 0, "2부": 0, "3부": 0, "4부": 0 };
-  allRes.forEach((r) => {
-    if (r.canceledAt) return; // 취소 예약 제외
-    if (parseDate(r.date) !== panelDate) return;
-    const s = matchSlot(r.timeSlot);
-    if (!(s in panelTotals)) return;
-    panelTotals[s] += Number(r.headcount) || 0;
   });
 
   /* ── Setup ── */
@@ -1569,10 +989,10 @@ export default function App() {
       {/* ── Tabs ── */}
       <div className="tabs">
         <button
-          className={`tab-btn ${tab === "search" ? "active" : ""}`}
-          onClick={() => setTab("search")}
+          className={`tab-btn ${tab === "register" ? "active" : ""}`}
+          onClick={() => setTab("register")}
         >
-          📋 예약 조회
+          🚶 현장 등록
         </button>
         <button
           className={`tab-btn ${tab === "lockers" ? "active" : ""}`}
@@ -1583,108 +1003,7 @@ export default function App() {
             <span className="tab-badge">{allLockers.length}</span>
           )}
         </button>
-        <button
-          className={`tab-btn ${tab === "register" ? "active" : ""}`}
-          onClick={() => setTab("register")}
-        >
-          🚶 현장 등록
-        </button>
-        <button
-          className={`tab-btn ${tab === "guest" ? "active" : ""}`}
-          onClick={() => setTab("guest")}
-        >
-          📞 예약자 검색
-        </button>
       </div>
-
-      {/* ════════════════════════════════════════
-          예약 조회 탭
-          ════════════════════════════════════════ */}
-      {tab === "search" && (
-        <div className="content content-flex">
-          <div className="main-col">
-          <div className="search-bar">
-            <div className="search-field search-date">
-              <label className="label">날짜</label>
-              <div className="date-static">📅 오늘 · {selectedDate}</div>
-            </div>
-            <div className="search-field">
-              <label className="label">예약자 성함</label>
-              <input
-                className="input"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-                placeholder="예: 홍길동 (영타 rla=김 도 인식)"
-                autoFocus
-              />
-            </div>
-            <div className="search-field">
-              <label className="label">객실 호수</label>
-              <input
-                className="input"
-                value={searchRoom}
-                onCompositionStart={() => (searchComposingRef.current = true)}
-                onCompositionEnd={(e) => {
-                  searchComposingRef.current = false;
-                  setSearchRoom(fixRoomInput(e.target.value));
-                }}
-                onChange={(e) =>
-                  setSearchRoom(
-                    searchComposingRef.current
-                      ? e.target.value
-                      : fixRoomInput(e.target.value)
-                  )
-                }
-                placeholder="예: A102 (ㅁ102도 인식)"
-              />
-            </div>
-            <div className="search-field search-slot">
-              <label className="label">시간(부)</label>
-              <select
-                className="input"
-                value={searchSlot}
-                onChange={(e) => setSearchSlot(e.target.value)}
-              >
-                <option value="">전체</option>
-                {Object.entries(TIME_SLOTS).map(([k, time]) => (
-                  <option key={k} value={k}>
-                    {k} ({time})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button className="btn btn-default search-refresh" onClick={handleRefresh}>
-              {loading ? "갱신중…" : "🔄 새로고침"}
-            </button>
-          </div>
-
-          {error && <div className="error-msg">{error}</div>}
-
-          {!loading && searchResults.length === 0 && !error && (
-            <div className="empty-state">
-              <div className="emoji">📋</div>
-              <p>
-                {searchRoom.trim() || searchName.trim() || searchSlot
-                  ? "검색 결과가 없습니다"
-                  : "조회된 예약이 없습니다"}
-              </p>
-            </div>
-          )}
-
-          <div className="card-list">
-            {searchResults.map((r) => (
-              <ReservationCard
-                key={r.rowIndex}
-                r={r}
-                onUpdate={handleUpdate}
-                prevInfo={prevInfoFor(r)}
-              />
-            ))}
-          </div>
-          </div>
-          <SlotStatusPanel totals={slotTotals} />
-        </div>
-      )}
 
       {/* ════════════════════════════════════════
           락커 현황 탭
@@ -1767,9 +1086,7 @@ export default function App() {
             )}
             <button
               className="refresh-btn"
-              onClick={() =>
-                fetchData(searchRoom.trim(), searchName.trim(), selectedDate)
-              }
+              onClick={() => fetchData("", "", selectedDate)}
               title="새로고침"
             >
               {loading ? "갱신중…" : "🔄"}
@@ -1930,176 +1247,6 @@ export default function App() {
             />
           </div>
           <SlotStatusPanel totals={slotTotals} />
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════
-          예약자 검색 탭 (전 날짜 · 전화 문의 대응)
-          ════════════════════════════════════════ */}
-      {tab === "guest" && (
-        <div className="content content-flex">
-          <div className="main-col">
-          <div className="search-bar">
-            <div className="search-field">
-              <label className="label">예약자 성함</label>
-              <input
-                className="input"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                placeholder="예: 홍길동 (영타 rla=김 도 인식)"
-                autoFocus
-              />
-            </div>
-            <div className="search-field">
-              <label className="label">객실 호수</label>
-              <input
-                className="input"
-                value={guestRoom}
-                onChange={(e) => setGuestRoom(fixRoomInput(e.target.value))}
-                placeholder="예: A102"
-              />
-            </div>
-            <button
-              className="btn btn-default search-refresh"
-              onClick={fetchAllDates}
-            >
-              {allLoading ? "갱신중…" : "🔄 새로고침"}
-            </button>
-          </div>
-          <div className="guest-hint">
-            📅 오늘뿐 아니라 <b>모든 날짜</b>의 예약에서 찾습니다 · 총 {allRes.length}건
-            불러옴
-          </div>
-
-          {allError && <div className="error-msg">{allError}</div>}
-
-          {!guestHasQuery ? (
-            <div className="empty-state">
-              <div className="emoji">📞</div>
-              <p>성함 또는 객실 호수를 입력하면 전체 날짜에서 검색됩니다</p>
-            </div>
-          ) : allLoading && guestResults.length === 0 ? (
-            <div className="empty-state">
-              <div className="emoji">⏳</div>
-              <p>불러오는 중…</p>
-            </div>
-          ) : guestResults.length === 0 ? (
-            <div className="empty-state">
-              <div className="emoji">🔍</div>
-              <p>검색 결과가 없습니다</p>
-            </div>
-          ) : (
-            <div className="guest-table">
-              {guestResults.map((r) => {
-                const slot = matchSlot(r.timeSlot);
-                const editing = editId === r.rowIndex;
-                return (
-                  <div key={r.rowIndex} className="guest-item">
-                    <div className="guest-row">
-                      <span className="gcell-date">이용 {parseDate(r.date)}</span>
-                      <span className="gcell-slot">{slot || "—"}</span>
-                      <span className="gcell-name">{r.name || "(무명)"}</span>
-                      <span className="gcell-room">{r.room}</span>
-                      <span
-                        className={`site-chip ${r.site === "플캠" ? "" : "site-chip-resort"}`}
-                      >
-                        {r.site || "휘닉스"}
-                      </span>
-                      {hasLateCheckout(r) && (
-                        <span className="late-badge">🕐 레이트 체크아웃</span>
-                      )}
-                      {r.source === "현장" && <span className="chip-etc">현장</span>}
-                      {r.returnedAt && <span className="chip-etc">반납됨</span>}
-                      {r.canceledAt && <span className="chip-cancel">취소됨</span>}
-                      <span className="gcell-ts">접수 {formatTimestamp(r.timestamp)}</span>
-                      <button
-                        className="guest-edit-btn"
-                        onClick={() => (editing ? cancelEdit() : startEdit(r))}
-                      >
-                        {editing ? "✕ 닫기" : "✏️ 편집"}
-                      </button>
-                      <button
-                        className={`guest-cancel-btn ${r.canceledAt ? "restore" : ""}`}
-                        onClick={() => handleCancelReservation(r, !!r.canceledAt)}
-                        disabled={cancelingRow === r.rowIndex}
-                        title={
-                          r.canceledAt
-                            ? "취소를 해제해 예약을 되살립니다"
-                            : "이 예약을 취소 처리합니다 (정원에서 제외)"
-                        }
-                      >
-                        {cancelingRow === r.rowIndex
-                          ? "처리중…"
-                          : r.canceledAt
-                            ? "↩ 취소 해제"
-                            : "🚫 예약 취소"}
-                      </button>
-                    </div>
-
-                    {editing && (
-                      <div className="guest-edit">
-                        <div className="guest-edit-fields">
-                          <label className="guest-edit-field">
-                            <span>이용 날짜</span>
-                            <input
-                              type="date"
-                              className="input"
-                              value={editDate}
-                              onChange={(e) => setEditDate(e.target.value)}
-                            />
-                          </label>
-                          <label className="guest-edit-field">
-                            <span>시간(부)</span>
-                            <select
-                              className="input"
-                              value={editSlot}
-                              onChange={(e) => setEditSlot(e.target.value)}
-                            >
-                              {Object.entries(TIME_SLOTS).map(([k, time]) => (
-                                <option key={k} value={k}>
-                                  {k} ({time})
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="guest-edit-check" title="컴플레인 대응 등으로 레이트 체크아웃을 약속한 고객에게 체크해 두면, 예약 조회 화면에 표시되어 놓치지 않습니다.">
-                            <input
-                              type="checkbox"
-                              checked={editLate}
-                              onChange={(e) => setEditLate(e.target.checked)}
-                            />
-                            🕐 레이트 체크아웃 적용
-                          </label>
-                        </div>
-                        <div className="guest-edit-actions">
-                          <button
-                            className="btn btn-default"
-                            onClick={cancelEdit}
-                            disabled={editSaving}
-                          >
-                            취소
-                          </button>
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => saveEdit(r)}
-                            disabled={editSaving}
-                          >
-                            {editSaving ? "저장중…" : "💾 저장"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          </div>
-          <SlotStatusPanel
-            totals={panelTotals}
-            date={panelDate}
-            onDateChange={setPanelDate}
-          />
         </div>
       )}
     </div>
