@@ -283,7 +283,6 @@ function matchKeyQuery(query, item) {
 function RegisterForm({ onSubmit, dayReservations }) {
   const [room, setRoom] = useState("");
   const [headcount, setHeadcount] = useState("1");
-  const [freeLimit, setFreeLimit] = useState(""); // "4" | "6" (첫 입장 시 선택)
   const [tokens, setTokens] = useState([""]); // 약식 락커 입력 칸들
   const [memo, setMemo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -302,28 +301,25 @@ function RegisterForm({ onSubmit, dayReservations }) {
     if (n >= 1) setHeadcount(String(n));
   }, [tokens]);
 
-  /* 오늘 이 객실의 이전 입장 기록 (무료 인원 초과 판정용) */
+  /* 오늘 이 객실의 입장 기록 + 현재 입장 인원
+     현재 입장 인원 = 반납되지 않은 활성 락커 수 (락커 반납 시 자동 감소) */
   const roomKey = normalizeRoom(room);
-  const roomInfo = roomKey
-    ? (dayReservations || []).filter((r) => normalizeRoom(r.room) === roomKey)
+  const roomRows = roomKey
+    ? (dayReservations || []).filter(
+        (r) => normalizeRoom(r.room) === roomKey && !r.canceledAt
+      )
     : [];
-  const hasPrior = roomInfo.length > 0;
-  const priorTotal = roomInfo.reduce((sum, r) => sum + (Number(r.headcount) || 0), 0);
-  const inheritedLimit = hasPrior
-    ? Number(roomInfo.map((r) => Number(r.freeLimit)).find((v) => v > 0) || 0)
-    : 0;
-  const effectiveLimit = hasPrior ? inheritedLimit : Number(freeLimit) || 0;
+  const hasPrior = roomRows.length > 0;
+  const presentCount = roomRows.reduce((sum, r) => {
+    if (r.returnedAt) return sum; // 전원 반납(퇴장)된 건 제외
+    const lockerN = parseLockers(r.locker).length;
+    return sum + (lockerN || Number(r.headcount) || 0);
+  }, 0);
 
   const addN = parseInt(headcount, 10) || 0;
-  const newTotal = priorTotal + addN;
-  const paidBefore = effectiveLimit ? Math.max(0, priorTotal - effectiveLimit) : 0;
-  const paidAfter = effectiveLimit ? Math.max(0, newTotal - effectiveLimit) : 0;
-  const paidThisBatch = paidAfter - paidBefore;
-  const freeRemaining = Math.max(0, effectiveLimit - newTotal);
+  const newPresent = presentCount + addN;
 
-  // 첫 입장이면 무료 한도 선택 필수
-  const canSubmit =
-    room.trim() && addN >= 1 && (hasPrior || Number(freeLimit) > 0) && !saving;
+  const canSubmit = room.trim() && addN >= 1 && !saving;
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -332,7 +328,6 @@ function RegisterForm({ onSubmit, dayReservations }) {
     const ok = await onSubmit({
       room: label,
       headcount: String(addN),
-      freeLimit: String(effectiveLimit),
       locker: tokensToLocker(tokens),
       memo: memo.trim(),
     });
@@ -340,7 +335,6 @@ function RegisterForm({ onSubmit, dayReservations }) {
     if (ok) {
       setRoom("");
       setHeadcount("1");
-      setFreeLimit("");
       setTokens([""]);
       setMemo("");
       setSavedMsg(`✓ ${label} ${addN}명 입장 등록`);
@@ -355,7 +349,7 @@ function RegisterForm({ onSubmit, dayReservations }) {
         <span className="register-icon">🚶</span>
         <div>
           <h2>현장 입장 등록</h2>
-          <p>객실 입력 시 오늘 이전 입장 기록과 무료 한도 초과 여부를 알려드립니다.</p>
+          <p>객실 입력 시 오늘 입장 기록과 현재 입장 인원을 알려드립니다.</p>
         </div>
       </div>
 
@@ -377,6 +371,13 @@ function RegisterForm({ onSubmit, dayReservations }) {
                 composingRef.current ? e.target.value : fixRoomInput(e.target.value)
               )
             }
+            onKeyDown={(e) => {
+              // 신속 등록: 객실에서 Tab → 락커 첫 칸으로 바로 이동
+              if (e.key === "Tab" && !e.shiftKey) {
+                e.preventDefault();
+                lockerFirstRef.current && lockerFirstRef.current.focus();
+              }
+            }}
             placeholder="예: A102 (ㅁ102도 인식)"
             autoFocus
           />
@@ -395,62 +396,40 @@ function RegisterForm({ onSubmit, dayReservations }) {
         </div>
       </div>
 
-      {/* 무료 인원 한도: 첫 입장이면 선택, 재입장이면 기존값 표시 */}
-      <div style={{ marginTop: 14 }}>
-        <label className="label">객실 무료 인원</label>
-        {hasPrior ? (
-          <div className="free-limit-fixed">
-            {inheritedLimit > 0
-              ? `${inheritedLimit}인 무료 (오늘 첫 등록 시 설정됨)`
-              : "설정 안 됨"}
-          </div>
-        ) : (
-          <div className="free-limit-pick">
-            {[4, 6].map((v) => (
-              <button
-                key={v}
-                type="button"
-                className={`free-limit-btn ${Number(freeLimit) === v ? "active" : ""}`}
-                onClick={() => setFreeLimit(String(v))}
-              >
-                {v}인 무료
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 이전 입장 기록 (오늘) */}
+      {/* 이 객실 오늘 입장 기록 + 현재 입장 인원 (주력 — 이전 기록 체크) */}
       {hasPrior && (
-        <div className="room-history">
-          <div className="room-history-title">
-            📋 오늘 이 객실 입장 기록 — {roomInfo.length}건 · 누적 {priorTotal}명
-          </div>
-          {roomInfo.map((r, i) => (
-            <div key={i} className="room-history-row">
-              <span className="rh-head">{r.headcount ? `${r.headcount}명` : "—"}</span>
-              {r.locker ? <span className="rh-locker">🔐 {r.locker}</span> : null}
-              {r.memo ? <span className="rh-memo">{r.memo}</span> : null}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 무료 한도 대비 유료 판정 (주력) */}
-      {effectiveLimit > 0 && addN >= 1 && (
-        <div className={`charge-box ${paidThisBatch > 0 ? "warn" : "ok"}`}>
-          <div className="charge-line">
-            누적 입장 <b>{newTotal}명</b> · 무료 한도 <b>{effectiveLimit}인</b>
-            {hasPrior && <span className="charge-prev"> (기존 {priorTotal}명 + 이번 {addN}명)</span>}
-          </div>
-          {paidThisBatch > 0 ? (
-            <div className="charge-alert">
-              🎟️ 이번 등록 중 <b>{paidThisBatch}명 입장권 구매 필요</b>
-              {paidBefore > 0 && ` (이전까지 유료 ${paidBefore}명)`}
+        <div className={`present-box ${presentCount > 0 ? "warn" : "ok"}`}>
+          {presentCount > 0 ? (
+            <div className="present-line present-warn">
+              ⚠️ 이 객실 현재 <b>{presentCount}명</b> 입장 중 — 이전 기록 있음
             </div>
           ) : (
-            <div className="charge-ok">✅ 전원 무료 입장 · 남은 무료 {freeRemaining}명</div>
+            <div className="present-line present-ok">
+              ℹ️ 이 객실 오늘 입장 기록 있음 · 전원 반납되어 현재 0명
+            </div>
           )}
+          {presentCount > 0 && addN >= 1 && (
+            <div className="present-sub">
+              이번 {addN}명 추가 시 총 <b>{newPresent}명</b> 입장 · 객실 무료 인원 초과 여부를 확인하세요
+            </div>
+          )}
+          <div className="room-history">
+            {roomRows.map((r, i) => {
+              const activeN = r.returnedAt ? 0 : parseLockers(r.locker).length;
+              return (
+                <div key={i} className="room-history-row">
+                  <span className="rh-head">
+                    {r.headcount ? `${r.headcount}명 입장` : "—"}
+                  </span>
+                  {r.locker ? <span className="rh-locker">🔐 {r.locker}</span> : null}
+                  <span className={`rh-status ${r.returnedAt ? "returned" : ""}`}>
+                    {r.returnedAt ? "반납 완료 (퇴장)" : `현재 ${activeN}명 이용 중`}
+                  </span>
+                  {r.memo ? <span className="rh-memo">{r.memo}</span> : null}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -482,9 +461,6 @@ function RegisterForm({ onSubmit, dayReservations }) {
       >
         {saving ? "등록중…" : "＋ 입장 등록 (Enter)"}
       </button>
-      {!hasPrior && room.trim() && !Number(freeLimit) && (
-        <div className="register-hint-warn">첫 입장입니다 — 객실 무료 인원(4/6)을 선택해주세요.</div>
-      )}
 
       {savedMsg && <div className="register-saved">{savedMsg}</div>}
     </div>
@@ -590,21 +566,22 @@ function LockerMemoEditor({ r, onSave }) {
 /* ================================================================
    오늘 입장객 현황판 (누적 입장 인원 카운터)
    ================================================================ */
-function DailyEntryPanel({ total, rooms, paid }) {
+function DailyEntryPanel({ present, presentRooms, total }) {
   return (
     <aside className="slot-aside">
       <div className="slot-aside-title">🏊 오늘 입장 현황</div>
       <div className="entry-big">
-        {total}
+        {present}
         <span className="entry-unit">명</span>
       </div>
+      <div className="entry-caption">현재 이용 중 (락커 기준 · 반납 시 감소)</div>
       <div className="entry-subs">
         <div className="entry-sub">
-          <b>{rooms}</b> 객실 입장
+          현재 <b>{presentRooms}</b> 객실 이용 중
         </div>
-        {paid > 0 && (
-          <div className="entry-sub entry-paid">🎟️ 유료 {paid}명</div>
-        )}
+        <div className="entry-sub entry-cumulative">
+          오늘 누적 <b>{total}</b>명 입장
+        </div>
       </div>
       <div className="slot-aside-foot">⟳ 15초마다 자동 갱신 · 오늘 기록 기준</div>
     </aside>
@@ -915,23 +892,15 @@ export default function App() {
     return item.r.assignedAt ? label : `${label} (등록 시각 기준)`;
   }
 
-  /* ── 오늘 입장 현황 집계 (누적 입장객 · 객실 수 · 유료 인원) ── */
+  /* ── 오늘 입장 현황 집계 ──
+     현재 이용 중 = 반납 안 된 활성 락커 수 (락커 반납 시 감소)
+     오늘 누적 = 취소되지 않은 모든 입장 인원 합 (반납해도 줄지 않음) */
   const active = reservations.filter((r) => !r.canceledAt);
   const dailyTotal = active.reduce((sum, r) => sum + (Number(r.headcount) || 0), 0);
-  const roomAgg = {}; // 객실별 누적 인원·무료한도 (유료 인원 계산용)
-  active.forEach((r) => {
-    const k = normalizeRoom(r.room);
-    if (!k) return;
-    if (!roomAgg[k]) roomAgg[k] = { total: 0, limit: 0 };
-    roomAgg[k].total += Number(r.headcount) || 0;
-    const lim = Number(r.freeLimit) || 0;
-    if (lim > roomAgg[k].limit) roomAgg[k].limit = lim;
-  });
-  const dailyRooms = Object.keys(roomAgg).length;
-  const dailyPaid = Object.values(roomAgg).reduce(
-    (sum, v) => sum + (v.limit ? Math.max(0, v.total - v.limit) : 0),
-    0
-  );
+  const currentPresent = allLockers.length;
+  const presentRooms = new Set(
+    allLockers.map((it) => normalizeRoom(it.r.room))
+  ).size;
 
   /* ── 오늘 데이터 전체 초기화 ── */
   const handleClearAll = async () => {
@@ -1249,7 +1218,11 @@ export default function App() {
               dayReservations={reservations}
             />
           </div>
-          <DailyEntryPanel total={dailyTotal} rooms={dailyRooms} paid={dailyPaid} />
+          <DailyEntryPanel
+            present={currentPresent}
+            presentRooms={presentRooms}
+            total={dailyTotal}
+          />
         </div>
       )}
     </div>
